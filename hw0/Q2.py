@@ -1,5 +1,4 @@
 import sys
-import math
 from PIL import Image
 
 def main():
