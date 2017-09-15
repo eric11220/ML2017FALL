@@ -15,7 +15,7 @@ def main():
 	for i in range(img.size[0]):
 		for j in range(img.size[1]):
 			r, g, b = pixels[i, j]
-			pixels[i, j] = (math.floor(float(r)/2), math.floor(float(g)/2), math.floor(float(b)/2))
+			pixels[i, j] = (int(r/2), int(g/2), int(b/2))
 
 	img.save("Q2.png", format='PNG')
 
