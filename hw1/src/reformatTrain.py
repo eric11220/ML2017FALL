@@ -2,7 +2,8 @@ import os
 import sys
 import codecs
 
-train_csv = "../data/train.csv"
+DATA_DIR = "../data"
+train_csv = os.path.join(DATA_DIR, "train.csv")
 target = 'PM2.5'
 
 # Reformat original training csv into per row data
@@ -39,7 +40,7 @@ def write_feats_to_file(month, out_path, feats, prev_hour, feat_names):
 def parse_train_csv(csv_path , prev_hour=9):
 
 	# Name of output folder is based on number of previous hour
-	out_dir = "num_prev_hour" + str(prev_hour)
+	out_dir = os.path.join(DATA_DIR, "num_prev_hour" + str(prev_hour))
 	if not os.path.isdir(out_dir):
 		os.mkdir(out_dir)
 
@@ -50,7 +51,7 @@ def parse_train_csv(csv_path , prev_hour=9):
 		with open(out_path, 'w') as inf:
 			pass
 
-	cur_month = None
+	cur_month, writen_header = None, False
 	feats, feat_names = {}, []
 	with codecs.open(csv_path, 'r', encoding='utf-8', errors='ignore') as inf:
 		inf.readline()
@@ -72,6 +73,14 @@ def parse_train_csv(csv_path , prev_hour=9):
 					feats[feat_name].extend(feat)
 			# A new month, stop concatenation
 			else:
+				if writen_header is False:
+					# Write feature order in the first line
+					with open(out_path, 'a') as outf:
+						for key in feat_names:
+							outf.write(key + " ")
+						outf.write("\n")
+					writen_header = True
+
 				write_feats_to_file(cur_month, out_path, feats, prev_hour, feat_names)
 				feats = {feat_name: feat}
 				cur_month = m
@@ -80,7 +89,8 @@ def parse_train_csv(csv_path , prev_hour=9):
 	write_feats_to_file(cur_month, out_path, feats, prev_hour, feat_names)
 
 def main():
-	parse_train_csv(train_csv)
+	prev_hour = int(sys.argv[1])
+	parse_train_csv(train_csv, prev_hour)
 
 if __name__ == '__main__':
 	main()
