@@ -1,8 +1,7 @@
 import sys
 import os
 import numpy as np
-
-coef_file = '../coefficients/num_prev_hour9_1_0'
+from keep_feat import *
 
 def predict(coef, data):
 	return np.sum(coef * data)
@@ -11,12 +10,14 @@ def append_deg(coef, data):
 	coef_len = len(coef) - 1
 	data_len = len(data)
 
+	final_feat = data
+
 	deg = 2
-	while len(data) < coef_len:
-		data = np.append(data, data ** deg)
+	while len(final_feat) < coef_len:
+		final_feat = np.append(final_feat, np.power(data, deg))
 		deg += 1
 
-	return data
+	return final_feat
 
 def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef):
 	with open(out_csv, 'w') as outf:
@@ -39,6 +40,8 @@ def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef):
 				else:
 					final_feat = []
 					for name in feat_order:
+						if name not in keep_feats:
+							continue
 						final_feat.extend(all_feats[name])
 
 					final_feat = np.asarray(final_feat, dtype=np.float32)
@@ -48,11 +51,15 @@ def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef):
 					final_feat = np.append(final_feat, 1.0)
 
 					prediction = predict(coef, final_feat)
+					if prediction < 0:
+						prediction = 0
 					outf.write(cur_id + "," + str(prediction) + "\n")
 					cur_id, all_feats = id, {feat_name: feat}
 
 		final_feat = []
 		for name in feat_order:
+			if name not in keep_feats:
+				continue
 			final_feat.extend(all_feats[name])
 		final_feat = np.asarray(final_feat, dtype=np.float32)
 		final_feat = append_deg(coef, final_feat)
@@ -61,9 +68,13 @@ def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef):
 		final_feat = np.append(final_feat, 1.0)
 
 		prediction = predict(coef, final_feat)
+		if prediction < 0:
+			prediction = 0
 		outf.write(cur_id + "," + str(prediction) + "\n")
 
-def load_parameters():
+def load_parameters(coef_file):
+	feat_order, train_mean, train_std, coef = np.load(coef_file, encoding='latin1')
+	'''
 	with open(coef_file, 'r') as inf:
 		lines = inf.readlines()
 
@@ -71,19 +82,20 @@ def load_parameters():
 		train_mean = np.asarray(lines[1].strip().split(' '), dtype=np.float32)
 		train_std = np.asarray(lines[2].strip().split(' '), dtype=np.float32)
 		coef = np.asarray(lines[3].strip().split(' '), dtype=np.float32)
-
+	'''
 	return feat_order, train_mean, train_std, coef
 
 def main():
 	argc = len(sys.argv)
-	if argc != 3:
+	if argc != 4:
 		print("Usage: python linearReg.py input_csv output_csv")
 		exit()
 
 	in_csv = sys.argv[1]
 	out_csv = sys.argv[2]
+	coef_file = sys.argv[3]
 
-	feat_order, train_mean, train_std, coef = load_parameters()
+	feat_order, train_mean, train_std, coef = load_parameters(coef_file)
 	test_data = predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef)
 
 if __name__ == '__main__':

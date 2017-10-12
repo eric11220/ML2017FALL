@@ -21,7 +21,9 @@ with open(out_csv, "w") as outf:
 
 			final_feat = first_deg
 			for d in range(2, degree+1):
-				final_feat = np.append(final_feat, np.power(first_deg, d))
+				final_feat = np.append(final_feat, first_deg ** d)
+				#final_feat = np.reshape(final_feat, (-1, 1)) * first_deg
+				#final_feat = np.reshape(final_feat, -1) 
 
 			outf.write(idx + " ")
 			for feat in final_feat:

@@ -27,6 +27,11 @@ def split_data(path, indices_path):
 	all_train_lbl, all_val_lbl = None, None
 	with open(path, 'r') as inf:
 		lines = inf.readlines()
+
+		# get feat order
+		feat_order = lines[0].strip().split(' ')
+
+		lines = lines[1:]
 		for idx, line in enumerate(lines):
 			vals = line.strip().split(" ")
 
@@ -66,13 +71,14 @@ def split_data(path, indices_path):
 				data.append(instance)
 				labels.append(label)
 
-	return all_train_data, all_val_data, all_train_lbl, all_val_lbl
+	return all_train_data, all_val_data, all_train_lbl, all_val_lbl, feat_order
 
 def gen_val_indices(in_csv, k_fold):
 	val_indices = {}
 	cur_month, num_data = 0, 0;
 	with open(in_csv, 'r') as inf:
 		lines = inf.readlines()
+		lines = lines[1:]
 		for idx, line in enumerate(lines):
 			vals = line.strip().split(" ")
 			month = int(vals[0])

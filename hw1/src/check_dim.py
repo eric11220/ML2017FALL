@@ -7,6 +7,7 @@ def main():
 	dim = None
 	with open(csv, 'r') as inf:
 		cnt = 0
+		inf.readline()
 		for line in inf:
 			vals = line.strip().split(' ')
 			if dim is None:
