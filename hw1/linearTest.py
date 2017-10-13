@@ -19,14 +19,16 @@ def append_deg(coef, data):
 
 	return final_feat
 
-def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef):
+def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef, hour):
+	print(train_mean.shape)
+	print(train_std.shape)
 	with open(out_csv, 'w') as outf:
 		outf.write("id,value\n")
 		with open(in_csv, 'r') as inf:
 			cur_id, all_feats = None, {}
 			for line in inf:
 				vals = line.strip().split(',')
-				id, feat_name, feat = vals[0], vals[1], vals[2:]
+				id, feat_name, feat = vals[0], vals[1], vals[-hour:]
 
 				for idx, f in enumerate(feat):
 					try:
@@ -87,16 +89,17 @@ def load_parameters(coef_file):
 
 def main():
 	argc = len(sys.argv)
-	if argc != 4:
-		print("Usage: python linearReg.py input_csv output_csv")
+	if argc != 5:
+		print("Usage: python linearReg.py input_csv output_csv hour")
 		exit()
 
 	in_csv = sys.argv[1]
 	out_csv = sys.argv[2]
 	coef_file = sys.argv[3]
+	hour = int(sys.argv[4])
 
 	feat_order, train_mean, train_std, coef = load_parameters(coef_file)
-	test_data = predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef)
+	test_data = predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef, hour)
 
 if __name__ == '__main__':
 	main()

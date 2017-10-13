@@ -164,7 +164,7 @@ def main():
 		if val_data is not None:
 			val_data = (val_data - train_mean) / train_std
 
-		coef, error = linear_reg(train_data, train_lbl, val_data, val_lbl,  batch_size=batch_size, n_epoch=n_epoch, lamb=lamb, gd_alg=gd_alg, lr=lr, close_form=False, early_stop=True)
+		coef, error = linear_reg(train_data, train_lbl, val_data, val_lbl,  batch_size=batch_size, n_epoch=n_epoch, lamb=lamb, gd_alg=gd_alg, lr=lr, close_form=False, early_stop=False)
 		if error is not None:
 			sum_error += error
 		else:
