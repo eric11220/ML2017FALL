@@ -20,8 +20,6 @@ def append_deg(coef, data):
 	return final_feat
 
 def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, coef, hour):
-	print(train_mean.shape)
-	print(train_std.shape)
 	with open(out_csv, 'w') as outf:
 		outf.write("id,value\n")
 		with open(in_csv, 'r') as inf:
@@ -90,7 +88,7 @@ def load_parameters(coef_file):
 def main():
 	argc = len(sys.argv)
 	if argc != 5:
-		print("Usage: python linearReg.py input_csv output_csv hour")
+		print("Usage: python linearReg.py input_csv output_csv coef_file hour")
 		exit()
 
 	in_csv = sys.argv[1]
