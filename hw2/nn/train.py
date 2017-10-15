@@ -37,12 +37,14 @@ def train(train_data, train_label, val_data, val_label, config, n_epoch=100, lr=
 	model = Sequential()
 	model.add(Dense(input_dim=dim, output_dim=layers[0]))
 	model.add(Activation('relu'))
-	model.add(Dropout(drop_rate))
+	if do_dropout[0] is True:
+		model.add(Dropout(drop_rate))
 
-	for layer in layers[1:]:
+	for layer, dropout in zip(layers[1:], do_dropout[1:]):
 		model.add(Dense(output_dim=layer))
 		model.add(Activation('relu'))
-		model.add(Dropout(drop_rate))
+		if dropout is True:
+			model.add(Dropout(drop_rate))
 
 	model.add(Dense(output_dim=2))
 	model.add(Activation('softmax'))
