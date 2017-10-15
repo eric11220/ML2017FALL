@@ -55,8 +55,6 @@ def write_feats_to_file(month, out_path, feats, prev_hour, next_hour, feat_names
 			outf.write(labels + " ")
 			outf.write("\n")
 
-			start_idx += 1
-
 # Transform csv into rows of training data
 def parse_train_csv(csv_path , prev_hour=9, next_hour=1):
 	global keep_feats
@@ -120,7 +118,6 @@ def main():
 		keep_indices = np.random.choice(range(len(keep_feats)), random_pick_feat_n, replace=False)
 		keep_feats = np.asarray(keep_feats)[keep_indices]
 
-	print(keep_feats)
 	parse_train_csv(train_csv, prev_hour, next_hour)
 
 if __name__ == '__main__':
