@@ -17,16 +17,30 @@ tolerance = 0.001
 epsilon = 1e-8
 
 
-def save_model(model, layers, k_fold, fold_idx):
-	model_path = os.path.join(MODEL_DIR, "_".join([str(l) for l in layers]) + '_' + str(k_fold) + '-' + fold_idx)
-	weight_path = os.path.join(MODEL_DIR, "_".join([str(l) for l in layers]) + '_' + str(k_fold) + '-' + fold_idx + '_weight.h5')
+def save_model(model, config, k_fold, fold_idx, train_mean, train_std):
+	layers, do_dropout, drop_rate = config["nn_layers"], config["dropout"], config["drop_rate"]
+
+	model_path = ""
+	for l, d in zip(layers, do_dropout):
+		model_path += str(l)
+		if d is True:
+			model_path += "d" + str(drop_rate)
+		model_path += "_"
+
+	model_path += str(k_fold) + '-' + str(fold_idx)
+	model_path = os.path.join(MODEL_DIR, model_path)
+	weight_path = model_path + '_weight.h5'
+	mean_std_path = model_path + '_mean_std.npy'
+
 	print(model_path, weight_path)
 	input("")
 
 	model_json = model.to_json()
 	with open(model_path, "w") as outf:
 		outf.write(model_json)
-	model.save_weight(weight_path)
+
+	model.save_weights(weight_path)
+	np.save(mean_std_path, [train_mean, train_std])
 
 
 def train(train_data, train_label, val_data, val_label, config, n_epoch=100, lr=1, batch_size=1, display_epoch=10, lamb=0.1, early_stop=False):
@@ -53,8 +67,12 @@ def train(train_data, train_label, val_data, val_label, config, n_epoch=100, lr=
 					optimizer='adam',
 					metrics=['accuracy'])
 
-	model.fit(train_data, train_label, batch_size=batch_size, nb_epoch=n_epoch, validation_data=(val_data, val_label))
-	return model
+	if val_data is not None:
+		model.fit(train_data, train_label, batch_size=batch_size, nb_epoch=n_epoch, validation_data=(val_data, val_label))
+		return model, model.evaluate(val_data, val_label)
+	else:
+		model.fit(train_data, train_label, batch_size=batch_size, nb_epoch=n_epoch)
+		return model, None
 
 
 def main():
@@ -88,7 +106,7 @@ def main():
 	feats, data = read_data(X_train)
 	labels = read_label(Y_train, n_class=2)
 
-	sum_error = 0
+	sum_acc, sum_err = 0, 0
 	for i in range(k_fold):
 		train_data, val_data, train_lbl, val_lbl = split_train_val(data, labels, indices[i])
 
@@ -99,15 +117,16 @@ def main():
 		if val_data is not None:
 			val_data = (val_data - train_mean) / train_std
 
-		model = train(train_data, train_lbl, val_data, val_lbl, config, n_epoch=n_epoch, batch_size=batch_size, lamb=lamb, early_stop=False)
-		save_model(model, config["nn_layers"], k_fold, i)
-		input("")
+		model, stat = train(train_data, train_lbl, val_data, val_lbl, config, n_epoch=n_epoch, batch_size=batch_size, lamb=lamb, early_stop=False)
+		save_model(model, config, k_fold, i, train_mean, train_std)
 
-		if acc is not None:
-			sum_acc += acc
+		if stat is not None:
+			sum_acc += stat[1]
+			sum_err += stat[0]
 
 	if  k_fold > 1:
-		sys.stderr.write(str(sum_error / k_fold) + "\n")
+		sys.stderr.write("Accuracy:" + str(sum_acc / k_fold) + "\n")
+		sys.stderr.write("Error:" + str(sum_err / k_fold) + "\n")
 
 
 if __name__ == '__main__':
