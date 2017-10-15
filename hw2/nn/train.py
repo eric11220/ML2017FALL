@@ -10,12 +10,24 @@ from splitData import *
 
 np.set_printoptions(suppress=True)
 
-COEF_DIR = 'coefficients'
+MODEL_DIR = 'models'
 
 num_losses = 10
 tolerance = 0.001
 epsilon = 1e-8
 drop_rate = 0.5
+
+
+def save_model(model, layers, k_fold, fold_idx):
+	model_path = os.path.join(MODEL_DIR, "_".join([str(l) for l in layers]) + '_' + str(k_fold) + '-' + fold_idx)
+	weight_path = os.path.join(MODEL_DIR, "_".join([str(l) for l in layers]) + '_' + str(k_fold) + '-' + fold_idx + '_weight.h5')
+	print(model_path, weight_path)
+	input("")
+
+	model_json = model.to_json()
+	with open(model_path, "w") as outf:
+		outf.write(model_json)
+	model.save_weight(weight_path)
 
 
 def train(train_data, train_label, val_data, val_label, layers, n_epoch=100, lr=1, batch_size=1, display_epoch=10, lamb=0.1, early_stop=False):
@@ -39,8 +51,7 @@ def train(train_data, train_label, val_data, val_label, layers, n_epoch=100, lr=
 					metrics=['accuracy'])
 
 	model.fit(train_data, train_label, batch_size=batch_size, nb_epoch=n_epoch, validation_data=(val_data, val_label))
-	train_acc = model.evaluate(train_data, train_label)
-	val_acc = model.evaluate(val_data, val_label)
+	return model
 
 
 def main():
@@ -85,7 +96,9 @@ def main():
 		if val_data is not None:
 			val_data = (val_data - train_mean) / train_std
 
-		coef, acc = train(train_data, train_lbl, val_data, val_lbl, config["nn_layers"], n_epoch=n_epoch, batch_size=batch_size, lamb=lamb, early_stop=False)
+		model = train(train_data, train_lbl, val_data, val_lbl, config["nn_layers"], n_epoch=n_epoch, batch_size=batch_size, lamb=lamb, early_stop=False)
+		save_model(model, config["nn_layers"], k_fold, i)
+		input("")
 
 		if acc is not None:
 			sum_acc += acc
