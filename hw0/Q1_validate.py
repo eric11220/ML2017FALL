@@ -10,17 +10,24 @@ def main():
 	word_path = sys.argv[1]
 	q1_path = sys.argv[2]
 
+	unique_words = []
 	with open(word_path, "r") as inf:
 		words = inf.readline().strip().split(" ")
-		print("Total words in original file: %d" % len(words))
+		for word in words:
+			if word not in unique_words:
+				unique_words.append(word)
 	
-	total = 0
+	total, word_cnt = 0, 0
 	with open(q1_path, "r") as inf:
 		for line in inf:
-			print(line + " abc")
+			print(line + "abc")
+			word_cnt += 1
 			line = line.strip()
 			word, idx, cnt = line.split(" ")
 			total += int(cnt)
+
+	print("unique words in original file %d" % len(unique_words))
+	print("words in produced file %d" % word_cnt)
 
 	print("Total words in produced file: %d" % total)
 	print("Total words in original file: %d" % len(words))
