@@ -15,7 +15,6 @@ MODEL_DIR = 'models'
 num_losses = 10
 tolerance = 0.001
 epsilon = 1e-8
-drop_rate = 0.5
 
 
 def save_model(model, layers, k_fold, fold_idx):
@@ -30,8 +29,10 @@ def save_model(model, layers, k_fold, fold_idx):
 	model.save_weight(weight_path)
 
 
-def train(train_data, train_label, val_data, val_label, layers, n_epoch=100, lr=1, batch_size=1, display_epoch=10, lamb=0.1, early_stop=False):
+def train(train_data, train_label, val_data, val_label, config, n_epoch=100, lr=1, batch_size=1, display_epoch=10, lamb=0.1, early_stop=False):
 	num_data, dim = train_data.shape
+
+	layers, do_dropout, drop_rate = config["nn_layers"], config["dropout"], config["drop_rate"]
 
 	model = Sequential()
 	model.add(Dense(input_dim=dim, output_dim=layers[0]))
@@ -96,7 +97,7 @@ def main():
 		if val_data is not None:
 			val_data = (val_data - train_mean) / train_std
 
-		model = train(train_data, train_lbl, val_data, val_lbl, config["nn_layers"], n_epoch=n_epoch, batch_size=batch_size, lamb=lamb, early_stop=False)
+		model = train(train_data, train_lbl, val_data, val_lbl, config, n_epoch=n_epoch, batch_size=batch_size, lamb=lamb, early_stop=False)
 		save_model(model, config["nn_layers"], k_fold, i)
 		input("")
 
