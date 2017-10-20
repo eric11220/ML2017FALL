@@ -5,14 +5,14 @@ from splitData import *
 
 model_dir = None
 dout = 0.5
-lamb = 0
+lamb = 0.001
 limit_inc_loss = 5
 best_loss = 10000
 layers =[64]
 
 def network(train_data, train_label, val_data, val_label, \
 			k_fold, fold, layers, dropouts, \
-			train_mean, train_std, train_lbl_mean, train_lbl_std, \
+			train_mean, train_std, train_lbl_min, train_lbl_max, \
 			feat_order, n_epoch=10000, lr=1, batch_size=1, display_epoch=10):
 
 	global model_dir, best_loss
@@ -41,16 +41,19 @@ def network(train_data, train_label, val_data, val_label, \
 
 		if dropout is True:
 			layer = tf.nn.dropout(layer, prob)
-	
+
 	first_y = tf.slice(y, [0, 0], [tf.shape(y)[0], 1])
 	first_logits = tf.slice(layer, [0, 0], [tf.shape(layer)[0], 1], name="predict")
-	print_loss = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(first_y, first_logits)))) 
 
-	#weights = [0.7 ** p for p in range(val_label.shape[1])]
 	loss = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(y, layer)))) 
 	for w, b in zip(weights, biases):
 		loss += 1/2 * lamb * tf.nn.l2_loss(w) + tf.nn.l2_loss(b)
 	optimizer = tf.train.AdamOptimizer(learning_rate=lr, name="optimizer").minimize(loss)
+
+	# Calibrate back normalization to labels
+	first_y = first_y * (train_lbl_max - train_lbl_min) + train_lbl_min
+	first_logits = first_logits * (train_lbl_max - train_lbl_min) + train_lbl_min
+	print_loss = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(first_y, first_logits)))) 
 
 	# Start training
 	num_inc_losses, prev_loss = 0, 0
@@ -174,18 +177,17 @@ def main():
 		train_std = np.std(train_data, axis=0)
 		train_data = (train_data - train_mean) / train_std
 
-		train_lbl_mean = np.mean(train_lbl)
-		train_lbl_std = np.std(train_lbl)
-		train_lbl = (train_lbl - train_lbl_mean) / train_lbl_std
+		train_lbl_min = np.min(train_lbl, axis=0)
+		train_lbl_max = np.max(train_lbl, axis=0)
+		train_lbl = (train_lbl - train_lbl_min) / (train_lbl_max - train_lbl_min)
 
 		if val_data is not None:
 			val_data = (val_data - train_mean) / train_std
-			val_lbl = (val_lbl - train_lbl_mean) / train_lbl_std
+			val_lbl = (val_lbl - train_lbl_min) / (train_lbl_max - train_lbl_min)
 
-		#train_info_path = os.path.join(model_dir, str(k_fold) + "-" + str(i) + "_train_info.npy")
 		error = network(train_data, train_lbl, val_data, val_lbl, \
 						k_fold, i, layers, dropouts, \
-						train_mean, train_std, train_lbl_mean, train_lbl_std, \
+						train_mean, train_std, train_lbl_min, train_lbl_max, \
 						feat_order, batch_size=batch_size, n_epoch=n_epoch, lr=lr)
 
 		if error is not None:
