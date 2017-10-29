@@ -78,7 +78,7 @@ def construct_model(config):
 	return model
 
 
-def nn_train(train_data, train_label, val_data, val_label, config, n_epoch=100, lr=1, batch_size=1, display_epoch=10, lamb=0.1, early_stop=False, patience=100):
+def nn_train(train_data, train_label, val_data, val_label, config, n_epoch=100, lr=1, batch_size=1, display_epoch=10, lamb=0.1, early_stop=False, patience=30):
 	from keras.callbacks import EarlyStopping
 
 	num_data = train_data.shape[0]
@@ -98,6 +98,17 @@ def nn_train(train_data, train_label, val_data, val_label, config, n_epoch=100, 
 		return model, None
 
 
+# Subtract mean per image and then setting norm to 100
+def champion_norm(data):
+	image_mean = np.mean(data, axis=1)
+	data = data - image_mean
+
+	norm1 = np.sum(np.abs(data))
+	data *= 100/norm1
+	return data
+
+
+>>>>>>> 8177aeb130a00a23cd28f969c1dce31b58293563
 def main():
 	argc = len(sys.argv)
 	if argc != 8:
@@ -127,10 +138,12 @@ def main():
 
 	labels, data = read_data(train)
 	data = np.reshape(data, [-1, 48, 48, 1])
-
+	
 	sum_acc, sum_err = 0, 0
 	for i in range(k_fold):
 		train_data, val_data, train_lbl, val_lbl = split_train_val(data, labels, indices[i])
+
+		train_data = champion_norm(train_data)
 
 		train_mean = np.mean(train_data, axis=0)
 		train_std = np.std(train_data, axis=0)
