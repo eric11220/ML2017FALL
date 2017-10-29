@@ -4,13 +4,19 @@ import tensorflow as tf
 from splitData import *
 
 model_dir = None
+norm_lbl = True
 dout = 0.5
+lamb = 0
 limit_inc_loss = 5
 best_loss = 10000
-layers =[64]
+layers = [64, 64]
 
-def network(train_data, train_label, val_data, val_label, k_fold, fold, layers, dropouts, train_mean, train_std, feat_order, n_epoch=10000, lr=1, batch_size=1, display_epoch=10):
-	global model_dir, best_loss
+def network(train_data, train_label, val_data, val_label, \
+			k_fold, fold, layers, dropouts, \
+			train_mean, train_std, train_lbl_min, train_lbl_max, \
+			feat_order, n_epoch=10000, lr=1, batch_size=1, display_epoch=10):
+
+	global model_dir, best_loss, norm_lbl
 	model_path = os.path.join(model_dir, 'model.ckpt')
 
 	layers.insert(0, train_data.shape[1])
@@ -24,23 +30,32 @@ def network(train_data, train_label, val_data, val_label, k_fold, fold, layers, 
 
 	prob = tf.placeholder(tf.float32, name="dropout") 
 
-	layer = x
+	layer, weights, biases = x, [], []
 	for layer_id, prev_n_neuron, n_neuron, dropout in zip(range(len(layers)), layers[:-1], layers[1:], dropouts[1:]):
 		w = tf.Variable(tf.truncated_normal([prev_n_neuron, n_neuron], stddev=0.1))
 		b = tf.Variable(tf.constant(0.1, shape=[n_neuron]))
 		layer = tf.add(tf.matmul(layer, w), b)
 		layer = tf.nn.relu(layer)
 
+		weights.append(w)
+		biases.append(b)
+
 		if dropout is True:
 			layer = tf.nn.dropout(layer, prob)
-	
+
 	first_y = tf.slice(y, [0, 0], [tf.shape(y)[0], 1])
 	first_logits = tf.slice(layer, [0, 0], [tf.shape(layer)[0], 1], name="predict")
-	print_loss = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(first_y, first_logits)))) 
 
-	#weights = [0.7 ** p for p in range(val_label.shape[1])]
 	loss = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(y, layer)))) 
+	for w, b in zip(weights, biases):
+		loss += 1/2 * lamb * tf.nn.l2_loss(w) + tf.nn.l2_loss(b)
 	optimizer = tf.train.AdamOptimizer(learning_rate=lr, name="optimizer").minimize(loss)
+
+	# Calibrate back normalization to labels
+	if norm_lbl is True:
+		first_y = first_y * (train_lbl_max - train_lbl_min) + train_lbl_min
+		first_logits = first_logits * (train_lbl_max - train_lbl_min) + train_lbl_min
+	print_loss = tf.sqrt(tf.reduce_mean(tf.square(tf.subtract(first_y, first_logits)))) 
 
 	# Start training
 	num_inc_losses, prev_loss = 0, 0
@@ -98,7 +113,7 @@ def network(train_data, train_label, val_data, val_label, k_fold, fold, layers, 
 						print("validation loss %f better than best loss %f, saving the model..." % (val_loss, best_loss))
 						saver.save(sess, model_path)
 						train_info_path = os.path.join(model_dir, "train_info.npy")
-						np.save(train_info_path, [train_mean, train_std, feat_order])
+						np.save(train_info_path, [train_mean, train_std, train_lbl_min, train_lbl_max, feat_order])
 						best_loss = val_loss
 
 					if num_inc_losses > limit_inc_loss:
@@ -109,10 +124,12 @@ def network(train_data, train_label, val_data, val_label, k_fold, fold, layers, 
 				else:
 					print('>epoch=%d, lrate=%.5f, error=%.3f' % (epoch, lr, train_loss))
 
+		'''
 		if val_data is None:
 			saver.save(sess, model_path)
 			train_info_path = os.path.join(model_dir, "train_info.npy")
-			np.save(train_info_path, [train_mean, train_std, feat_order])
+			np.save(train_info_path, [train_mean, train_std, train_lbl_min, train_lbl_max, feat_order])
+		'''
 
 	if val_data is not None:
 		return val_loss
@@ -121,17 +138,18 @@ def network(train_data, train_label, val_data, val_label, k_fold, fold, layers, 
 
 def main():
 	argc = len(sys.argv)
-	if argc != 6:
-		print("Usage: python linearReg.py input_csv k_fold n_epoch lr batch_size")
+	if argc != 7:
+		print("Usage: python linearReg.py input_csv k_fold n_epoch lr batch_size norm_lbl")
 		exit()
 
-	global model_dir 
+	global model_dir, norm_lbl
 
 	in_csv = sys.argv[1]
 	k_fold = int(sys.argv[2])
 	n_epoch = int(sys.argv[3])
 	lr = float(sys.argv[4])
 	batch_size = int(sys.argv[5])
+	norm_lbl = bool(sys.argv[6])
 
 	dropouts = [False, True, False] 
 
@@ -164,11 +182,20 @@ def main():
 		train_std = np.std(train_data, axis=0)
 		train_data = (train_data - train_mean) / train_std
 
+		train_lbl_min = np.min(train_lbl, axis=0)
+		train_lbl_max = np.max(train_lbl, axis=0)
+		if norm_lbl is True:
+			train_lbl = (train_lbl - train_lbl_min) / (train_lbl_max - train_lbl_min)
+
 		if val_data is not None:
 			val_data = (val_data - train_mean) / train_std
+			if norm_lbl is True:
+				val_lbl = (val_lbl - train_lbl_min) / (train_lbl_max - train_lbl_min)
 
-		#train_info_path = os.path.join(model_dir, str(k_fold) + "-" + str(i) + "_train_info.npy")
-		error = network(train_data, train_lbl, val_data, val_lbl, k_fold, i, layers, dropouts, train_mean, train_std, feat_order, batch_size=batch_size, n_epoch=n_epoch, lr=lr)
+		error = network(train_data, train_lbl, val_data, val_lbl, \
+						k_fold, i, layers, dropouts, \
+						train_mean, train_std, train_lbl_min, train_lbl_max, \
+						feat_order, batch_size=batch_size, n_epoch=n_epoch, lr=lr)
 
 		if error is not None:
 			sum_error += error

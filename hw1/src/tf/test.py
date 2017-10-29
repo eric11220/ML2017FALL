@@ -3,13 +3,24 @@ import sys
 import tensorflow as tf 
 from splitData import *
 
-def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, model_path):
+def append_deg(input_len, data):
+	data_len = len(data)
 
-	model_dir = os.path.dirname(model_path)
+	final_feat = data
+
+	deg = 2
+	while len(final_feat) < input_len:
+		final_feat = np.append(final_feat, np.power(data, deg))
+		deg += 1
+
+	return final_feat
+
+def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, train_lbl_min, train_lbl_max, model_path):
 
 	with tf.Session() as sess:
 		saver = tf.train.import_meta_graph(model_path)
-		saver.restore(sess,tf.train.latest_checkpoint(model_dir))
+		model_dir = os.path.dirname(model_path)
+		saver.restore(sess, tf.train.latest_checkpoint(model_dir))
 
 		graph = tf.get_default_graph()
 
@@ -38,8 +49,9 @@ def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, model_path):
 						final_feat = []
 						for name in feat_order:
 							final_feat.extend(all_feats[name])
-					
+
 						final_feat = np.asarray(final_feat, dtype=np.float32)
+						final_feat = append_deg(x.shape[1], final_feat)
 						final_feat = (final_feat - train_mean) / train_std
 						final_feat = np.reshape(final_feat, [1, -1])
 
@@ -51,13 +63,15 @@ def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, model_path):
 							}
 						)
 
-						outf.write(cur_id + "," + str(prediction[0][0]) + "\n")
+						prediction = prediction[0][0] * (train_lbl_max - train_lbl_min) + train_lbl_min
+						outf.write(cur_id + "," + str(prediction[0]) + "\n")
 						cur_id, all_feats = id, {feat_name: feat}
 
 			final_feat = []
 			for name in feat_order:
 				final_feat.extend(all_feats[name])
 			final_feat = np.asarray(final_feat, dtype=np.float32)
+			final_feat = append_deg(x.shape[1], final_feat)
 
 			final_feat = (final_feat - train_mean) / train_std
 			final_feat = np.reshape(final_feat, [1, -1])
@@ -69,12 +83,13 @@ def predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, model_path):
 					dropout: 1
 				}
 			)
-			outf.write(cur_id + "," + str(prediction[0][0]) + "\n")
+			prediction = prediction[0][0] * (train_lbl_max - train_lbl_min) + train_lbl_min
+			outf.write(cur_id + "," + str(prediction[0]) + "\n")
 
 def main():
 	argc = len(sys.argv)
 	if argc != 4:
-		print("Usage: python test.py test_csv out_csv model_path")
+		print("Usage: python test.py test_csv model_path")
 		exit()
 
 	in_csv = sys.argv[1]
@@ -84,7 +99,7 @@ def main():
 	model_dir = os.path.dirname(model_path)
 	train_info_path = os.path.join(model_dir, "train_info.npy")
 
-	train_mean, train_std, feat_order = np.load(train_info_path)
+	train_mean, train_std, train_lbl_min, train_lbl_max, feat_order = np.load(train_info_path)
 
 	name, ext = os.path.splitext(in_csv)
 	next_hour = name.split("+")
@@ -93,7 +108,7 @@ def main():
 	else:
 		label_len = int(next_hour[1])
 
-	predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, model_path)
+	predict_csv(in_csv, out_csv, feat_order, train_mean, train_std, train_lbl_min, train_lbl_max, model_path)
 
 if __name__ == '__main__':
 	main()
