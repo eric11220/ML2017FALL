@@ -1,15 +1,24 @@
 import keras
-from keras.models import Sequential
+from keras.models import Sequential, Model
 from keras.layers import Dense, Dropout, Activation, Flatten
+
+# For ResNet50
+from keras import layers
+from keras.layers import BatchNormalization, Input, ZeroPadding2D, AveragePooling2D, Reshape, Lambda
+
 from keras.layers import Conv2D, MaxPooling2D
 from keras.optimizers import Adadelta
 from keras.regularizers import l2
 
+
+# Default to channels_last
+bn_axis = 3
+img_rows = 48
+img_cols = 48
+
 def identity_block(input_tensor, kernel_size, filters, stage, block):
 	filters1, filters2, filters3 = filters
 
-	# Default to channels_last
-	bn_axis = 3
 
 	conv_name_base = 'res' + str(stage) + block + '_branch'
 	bn_name_base = 'bn' + str(stage) + block + '_branch'
@@ -33,9 +42,6 @@ def identity_block(input_tensor, kernel_size, filters, stage, block):
 
 def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2)):
 	filters1, filters2, filters3 = filters
-
-	# Default to channels_last
-	bn_axis = 3
 
 	conv_name_base = 'res' + str(stage) + block + '_branch'
 	bn_name_base = 'bn' + str(stage) + block + '_branch'
@@ -62,9 +68,19 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
 	return x
 
 
-def ResNet50():
-	input_shape = (48, 48, 1)
-	img_input = Input(input_shape=input_shape)
+def resize_broker(x, height=224, width=224, data_format="channels_last"):
+	from keras.backend import resize_images
+	hf = 224/img_rows
+	wf = 224/img_cols
+	return resize_images(x, hf, wf, data_format)
+
+
+def resnet50():
+
+	input_shape = (224, 224, 1)
+	img_input = Input(shape=input_shape)
+
+	#x = Lambda(resize_broker)(img_input)
 
 	x = ZeroPadding2D((3, 3))(img_input)
 	x = Conv2D(64, (7, 7), strides=(2, 2), name='conv1')(x)
@@ -98,11 +114,18 @@ def ResNet50():
 	x = Dense(7, activation='softmax', name='fc7')(x)
 
 	# Create model.
-	model = Model(inputs, x, name='resnet50')
+	model = Model(img_input, x, name='resnet50')
+
+	ada = Adadelta(lr=0.1, rho=0.95, epsilon=1e-08)
+	model.compile(loss='categorical_crossentropy',
+				  optimizer=ada,
+				  metrics=['accuracy'])
+	model.summary()
+	input("check model summary")
 	return model
 
 def vgg16():
-	input_shape = (48, 48, 1)
+	input_shape = (img_rows, img_cols, 1)
 
 	# Block 1
 	model = Sequential()
@@ -150,7 +173,6 @@ def vgg16():
 
 
 def orig_model():
-	img_rows, img_cols = 48, 48
 	model = Sequential()
 	model.add(Conv2D(64, (5, 5), padding='same',
 							input_shape=(img_rows, img_cols, 1)))

@@ -66,6 +66,14 @@ def main():
 			model = orig_model()
 		elif model_struct == "vgg16":
 			model = vgg16()
+		elif model_struct == "resnet50":
+			from scipy import misc
+			Train_x = np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in Train_x])
+			Val_x	= np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in Val_x])
+			Train_x = Train_x[:, :, :, np.newaxis]
+			Val_x = Val_x[:, :, :, np.newaxis]
+
+			model = resnet50()
 		
 		model_subdir = os.path.join(MODLE_DIR, model_struct, datetime.now().strftime('%m-%d_%H:%M'), str(k_fold) + "-" + str(fold))
 		os.makedirs(model_subdir)
@@ -88,8 +96,8 @@ def main():
 		datagen.fit(Train_x)
 		model.fit_generator(datagen.flow(Train_x, Train_y,
 		                    batch_size=batch_size),
-		                    samples_per_epoch=Train_x.shape[0],
-		                    nb_epoch=nb_epoch,
+		                    Train_x.shape[0]/batch_size,
+		                    epochs=nb_epoch,
 		                    validation_data=(Val_x, Val_y),
 		                    callbacks=[checkpointer])
 		
