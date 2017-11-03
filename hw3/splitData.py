@@ -1,18 +1,21 @@
 import numpy as np
 import os
 
-def read_data(in_csv, num_class=6):
+def read_data(in_csv, num_class=7, one_hot_encoding=True):
 	data, labels = [], []
 	with open(in_csv, "r") as inf:
 		headers = inf.readline().strip().replace(" ", "").split(',')
 		for line in inf:
 			label, feats = line.strip().split(",")
-			label = int(label)
 
-			one_hot = np.zeros((num_class,))
-			one_hot[label-1] = 1
+			if one_hot_encoding is True:
+				label = int(label)
+				one_hot = np.zeros((num_class,))
+				one_hot[label] = 1
+				labels.append(one_hot)
+			else:
+				labels.append(label)
 
-			labels.append(one_hot)
 			data.append(feats.split(" "))
 
 	labels = np.asarray(labels, dtype=np.int16)
