@@ -106,19 +106,6 @@ def Zerocenter_ZCA_whitening_Global_Contrast_Normalize(list):
 	data5 = np.rot90(data4,3)
 	return data5
 
-def load_test_data(csv_path):
-	test_x = []
-	with open(csv_path, "r") as inf:
-		inf.readline()
-		for line in inf:
-			id, feats = line.strip().split(",")
-			feats = feats.split(" ")
-
-			feats = [float(feat) for feat in feats]
-			feats = Zerocenter_ZCA_whitening_Global_Contrast_Normalize(feats)
-			test_x.append(feats)
-	return test_x
-
 def convert_data(data, label, whitening=False):
 	x, y = [], []
 

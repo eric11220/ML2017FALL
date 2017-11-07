@@ -1,7 +1,25 @@
 import numpy as np
 import os
 
-def read_data(in_csv, num_class=7, one_hot_encoding=True):
+def find_info(model_path):
+	name, ext = os.path.splitext(model_path)
+	fold_info = model_path.split('/')[-2]
+	k_fold, fold = fold_info.split('-')
+
+	do_zca = "zca" in mode_path
+	return int(k_fold), int(fold), do_zca
+
+
+def convert_to_svm_label(labels, n_class=7):
+	tmp_y = []
+	for label in labels:
+		arr = np.asarray([-1 for _ in range(n_class)])
+		arr[int(label)] = 1
+		tmp_y.append(arr)
+	return np.asarray(tmp_y)
+
+
+def read_data(in_csv, num_class=7, one_hot_encoding=True, svm_label=False):
 	data, labels = [], []
 	with open(in_csv, "r") as inf:
 		headers = inf.readline().strip().replace(" ", "").split(',')
@@ -10,7 +28,11 @@ def read_data(in_csv, num_class=7, one_hot_encoding=True):
 
 			if one_hot_encoding is True:
 				label = int(label)
-				one_hot = np.zeros((num_class,))
+				if svm_label is True:
+					one_hot = np.asarray([-1 for _ in range(num_class)])
+				else:
+					one_hot = np.zeros((num_class,))
+
 				one_hot[label] = 1
 				labels.append(one_hot)
 			else:

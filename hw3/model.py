@@ -124,7 +124,7 @@ def resnet50():
 	input("check model summary")
 	return model
 
-def vgg16():
+def vgg16(loss="categorical_crossentropy", dropout=0.2):
 	input_shape = (img_rows, img_cols, 1)
 
 	# Block 1
@@ -159,13 +159,17 @@ def vgg16():
 	# Classification block
 	model.add(Flatten(name='flatten'))
 	model.add(Dense(4096, activation='relu', name='fc1'))
-	model.add(Dropout(0.2))
-	model.add(Dense(4096, activation='relu', name='fc2'))
-	model.add(Dropout(0.2))
-	model.add(Dense(7, activation='softmax', name='predictions'))
+	model.add(Dropout(dropout))
+	model.add(Dense(1000, activation='relu', name='fc2'))
+	model.add(Dropout(dropout))
+
+	if loss == 'categorical_crossentropy':
+		model.add(Dense(7, activation='softmax', name='predictions'))
+	else:
+		model.add(Dense(7, activation='sigmoid', name='predictions'))
 
 	ada = Adadelta(lr=0.1, rho=0.95, epsilon=1e-08)
-	model.compile(loss='categorical_crossentropy',
+	model.compile(loss=loss,
 				  optimizer=ada,
 				  metrics=['accuracy'])
 	model.summary()

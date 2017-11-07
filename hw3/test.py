@@ -82,27 +82,34 @@ def average_method(model_path, data, method="average"):
 	return out
 
 
+def output_result_to_file(out, out_path):
+	with open(out_path, 'w') as outf:
+		outf.write("id,label\n")
+
+		for cur_id, prediction in enumerate(out):
+			outf.write(str(cur_id) + "," + str(prediction) + "\n")
+
+
 def main():
 	argc = len(sys.argv)
-	if argc != 4:
-		print("Usage: python test.py model_path test_path val_test")
+	if argc != 6:
+		print("Usage: python test.py model_path test_path out_path plain_out val_test")
 		exit()
 
 	model_path = sys.argv[1]
 	test_path = sys.argv[2]
-	val_test = int(sys.argv[3])
+	out_path = sys.argv[3]
+	plain_out = sys.argv[4] == "1"
+	val_test = int(sys.argv[5])
 
+
+	k_fold, fold, do_zca = find_info(test_path)
 
 	# k_fold is for testing validation data using averaging method
 	# Normallt set to 1 for regular testing
 	if val_test == 1:
 		from keras.utils import np_utils
 		#labels, data = read_data(test_path, one_hot_encoding=False)
-
-		name, ext = os.path.splitext(test_path)
-		fold_info = model_path.split('/')[-2]
-		k_fold, fold = fold_info.split('-')
-		k_fold, fold  = int(k_fold), int(fold)
 
 		indice_path = name + "_" + str(k_fold) + "fold"
 		if not os.path.isfile(indice_path):
@@ -112,21 +119,33 @@ def main():
 
 		labels, data = read_data(test_path, one_hot_encoding=False)
 		_, val_data, _, val_lbl = split_train_val(data, labels, indices[fold])
-		Val_x, Val_y = dataprocessing.convert_data(val_data, val_lbl)
 
-		Val_x = np.asarray(Val_x)
-		Val_x = Val_x[:, :, :, np.newaxis]
-		Val_x = Val_x.astype('float32')
-		Val_y = np.asarray(Val_y, dtype=np.uint8)
+		val_data = val_data[:, :, :, np.newaxis]
+		val_lbl = np.asarray(val_lbl, dtype=np.uint8)
 
-		avg_out = average_method(model_path, Val_x)
-		print("Average method acc: %.4f" % (np.sum(avg_out == Val_y) / Val_y.shape[0]))
+		avg_out = average_method(model_path, val_data)
+		print("Average method acc: %.4f" % (np.sum(avg_out == val_lbl) / val_lbl.shape[0]))
 
-		plain_out = plain_method(model_path, Val_x)
-		print("Normal method acc: %.4f" % (np.sum(plain_out == Val_y) / Val_y.shape[0]))
+		val_data = np.reshape(val_data, (-1, img_rows, img_cols, 1))
+		plain_out = plain_method(model_path, val_data)
+		print("Normal method acc: %.4f" % (np.sum(plain_out == val_lbl) / val_lbl.shape[0]))
 	else:
-		data = dataprocessing.load_test_data()
-		average_method(model_path, data)
+		_, data = read_data(test_path, one_hot_encoding=False)
+		if do_zca is True:
+			zca_path = os.path.join( os.path.dirname(model_path), "zca_matrix.npy")
+			zca_mat = np.load(zca_path)
+			data = Zerocenter_ZCA_Whitening_Global_Contrast_Normalize(data, zca_mat=zca_mat)
+
+		data = np.asarray(data, dtype=np.float32)
+		data = np.reshape(data, (-1, img_rows, img_cols))
+
+		if plain_out is True:
+			data = data[:, :, :, np.newaxis]
+			out = plain_method(model_path, data)
+		else:
+			print("Averaging...")
+			out = average_method(model_path, data)
+		output_result_to_file(out, out_path)
 
 
 if __name__ == "__main__":

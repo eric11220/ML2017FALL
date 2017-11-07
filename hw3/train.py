@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import os
 import sys
+import random
 import numpy as np
 from datetime import datetime
 
@@ -15,14 +16,18 @@ MODLE_DIR = 'models'
 
 def main():
 	argc = len(sys.argv)
-	if argc != 5:
-		print("Usage: python train.py k_fold batch_size n_epoch model_struct")
+	if argc != 8:
+		print("Usage: python train.py k_fold batch_size n_epoch model_struct loss dropout do_zca")
+		exit()
 
 	img_rows, img_cols = 48, 48
 	k_fold = int(sys.argv[1])
 	batch_size = int(sys.argv[2])
 	nb_epoch = int(sys.argv[3])
 	model_struct = sys.argv[4]
+	loss = sys.argv[5]
+	dropout = float(sys.argv[6])
+	do_zca = sys.argv[7] == "1"
 
 	nb_classes = 7
 	img_channels = 1
@@ -41,43 +46,45 @@ def main():
 	else:
 		indices = [[]]
 	
-	labels, data = read_data(train, one_hot_encoding=False)
+	labels, data = read_data(train, one_hot_encoding=True)
 	
+	time_now = datetime.now().strftime('%m-%d_%H:%M')
+	fold_order = list(range(k_fold))
+	random.shuffle(fold_order)
+
 	sum_acc, sum_err = 0, 0
-	for fold in range(k_fold):
+	for fold in fold_order:
+
 		train_data, val_data, train_lbl, val_lbl = split_train_val(data, labels, indices[fold])
-		Train_x, Train_y = dataprocessing.convert_data(train_data, train_lbl)
-		Val_x, Val_y = dataprocessing.convert_data(val_data, val_lbl)
+
+		if do_zca is True:
+			model_subdir = os.path.join(MODLE_DIR, model_struct, "zca_" + time_now, str(k_fold) + "-" + str(fold))
+
+			train_data, zca_mat = Zerocenter_ZCA_whitening_Global_Contrast_Normalize(train_data)
+			val_data, _ = Zerocenter_ZCA_whitening_Global_Contrast_Normalize(val_data, zca_mat)
+			zca_path = os.path.join(model_subdir, 'zca_matrix.npy')
+			np.save(zca_path, zca_mat)
+		else:
+			model_subdir = os.path.join(MODLE_DIR, model_struct, time_now, str(k_fold) + "-" + str(fold))
+		os.makedirs(model_subdir)
 	
-		Train_x = np.asarray(Train_x) 
-		Train_x = Train_x.reshape(Train_x.shape[0], img_rows, img_cols)
-		Train_x = Train_x.reshape(Train_x.shape[0], img_rows, img_cols, 1)
-		Train_x = Train_x.astype('float32')
-		
-		Val_x = np.asarray(Val_x)
-		Val_x = Val_x.reshape(Val_x.shape[0], img_rows, img_cols)
-		Val_x = Val_x.reshape(Val_x.shape[0], img_rows, img_cols, 1)
-		Val_x = Val_x.astype('float32')
-		
-		Train_y = np_utils.to_categorical(Train_y, nb_classes)
-		Val_y = np_utils.to_categorical(Val_y, nb_classes)
+		train_data = train_data.reshape(train_data.shape[0], img_rows, img_cols)
+		train_data = train_data.reshape(train_data.shape[0], img_rows, img_cols, 1)
+		val_data = val_data.reshape(val_data.shape[0], img_rows, img_cols)
+		val_data = val_data.reshape(val_data.shape[0], img_rows, img_cols, 1)
 		
 		if model_struct == "orig":
-			model = orig_model()
+			model = orig_model(loss)
 		elif model_struct == "vgg16":
-			model = vgg16()
+			model = vgg16(loss, dropout)
 		elif model_struct == "resnet50":
 			from scipy import misc
-			Train_x = np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in Train_x])
-			Val_x	= np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in Val_x])
-			Train_x = Train_x[:, :, :, np.newaxis]
-			Val_x = Val_x[:, :, :, np.newaxis]
-
+			train_data = np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in train_data])
+			val_data	= np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in val_data])
+			train_data = train_data[:, :, :, np.newaxis]
+			val_data = val_data[:, :, :, np.newaxis]
 			model = resnet50()
 		
-		model_subdir = os.path.join(MODLE_DIR, model_struct, datetime.now().strftime('%m-%d_%H:%M'), str(k_fold) + "-" + str(fold))
-		os.makedirs(model_subdir)
-
 		filepath = os.path.join(model_subdir, 'Model.{epoch:02d}-{val_acc:.4f}-{val_loss:.4f}.hdf5')
 		checkpointer = keras.callbacks.ModelCheckpoint(filepath, monitor='val_acc', verbose=10, save_best_only=True, mode='auto')
 		
@@ -93,12 +100,12 @@ def main():
 		    horizontal_flip=True,  # randomly flip images
 		    vertical_flip=False)  # randomly flip images
 		
-		datagen.fit(Train_x)
-		model.fit_generator(datagen.flow(Train_x, Train_y,
+		datagen.fit(train_data)
+		model.fit_generator(datagen.flow(train_data, train_lbl,
 		                    batch_size=batch_size),
-		                    Train_x.shape[0]/batch_size,
+		                    train_data.shape[0]/batch_size,
 		                    epochs=nb_epoch,
-		                    validation_data=(Val_x, Val_y),
+		                    validation_data=(val_data, val_lbl),
 		                    callbacks=[checkpointer])
 		
 if __name__ == '__main__':
