@@ -38,12 +38,23 @@ def ImageTransform(number, data, dim):
 	return ConvertTo3DVolume(toreturn)
 
 
-# Data now takes a list of transformed data
-def plain_method(model_dir, model1_path, model2_path, data, prob=False):
+def load_models(model_dir, model1_path, model2_path):
 	from keras.models import load_model
 	model1 = load_model(model1_path)
 	model2 = load_model(model2_path)
 
+	regress_models = []
+	for cls in range(nb_classes):
+		for name in os.listdir(model_dir):
+			if "Model" + str(cls) in name:
+				model_path = os.path.join(model_dir, name)
+				model = load_model(model_path)
+				regress_models.append(model)
+
+	return model1, model2, regress_models
+
+
+def plain_method(model_dir, model1, model2, regress_models, data, prob=False):
 	nn_feat1 = nn_feature(model1, data)
 	nn_feat2 = nn_feature(model2, data)
 
@@ -53,12 +64,6 @@ def plain_method(model_dir, model1_path, model2_path, data, prob=False):
 	# Get a score from each regression model
 	scores = []
 	for cls in range(nb_classes):
-		for name in os.listdir(model_dir):
-			if "Model" + str(cls) in name:
-				model_path = os.path.join(model_dir, name)
-				model = load_model(model_path)
-
-
 		print("Processing class %d..." % cls)
 		num_data = len(final_feat)
 		idx, batch, tmp_score = 0, 1000, None
@@ -67,6 +72,8 @@ def plain_method(model_dir, model1_path, model2_path, data, prob=False):
 				end = num_data
 			else:
 				end = idx + batch
+
+			model = regress_models[cls]
 
 			result = model.predict(final_feat[idx:end])
 			result = np.reshape(result, (-1))
@@ -88,15 +95,14 @@ def plain_method(model_dir, model1_path, model2_path, data, prob=False):
 	return prediction
 
 
-def average_method(model_dir, model1_path, model2_path, data, dim=48):
-
+def average_method(model_dir, model1, model2, regress_models, data, dim=48):
 	from keras.models import load_model
 
 	out = []
-	for form in range(2):
+	for form in range(7):
 		print("Processing transformed image %d..." % form)
 		trans_data = ImageTransform(form, data, dim)
-		prediction = plain_method(model_dir, model1_path, model2_path, trans_data, prob=True)
+		prediction = plain_method(model_dir, model1, model2, regress_models, trans_data, prob=True)
 		out.append(prediction)
 
 	out = np.asarray(out)
@@ -132,14 +138,14 @@ def output_result_to_file(out, out_path):
 def main():
 	argc = len(sys.argv)
 	if argc != 6:
-		print("Usage: python test.py model_dir test_path out_path plain_out val_test")
+		print("Usage: python test.py model_dir test_path out_path method val_test")
 		exit()
 
 	# model_dir is directory
 	model_dir = sys.argv[1]
 	test_path = sys.argv[2]
 	out_path = sys.argv[3]
-	plain_out = sys.argv[4] == "1"
+	method = int(sys.argv[4])
 	val_test = int(sys.argv[5])
 
 	# Get two model paths
@@ -147,6 +153,9 @@ def main():
 	model1_path, model2_path, fold_info = tmp_path.split('_')
 	model1_path = os.path.join(model_dir, model1_path + '.hdf5')
 	model2_path = os.path.join(model_dir, model2_path + '.hdf5')
+
+	# Preload Models
+	model1, model2, regress_models = load_models(model_dir, model1_path, model2_path)
 
 	# k_fold is for testing validation data using averaging method
 	# Normallt set to 1 for regular testing
@@ -157,22 +166,22 @@ def main():
 		k_fold, fold = int(k_fold), int(fold)
 		indice_path = "data/train_" + str(k_fold) + "fold"
 		if not os.path.isfile(indice_path):
-			indices = gen_val_indices(train, k_fold)
+			print("Fold combination not exists!")
+			exit()
 		else:
 			indices = get_val_indices(indice_path)
 
 		labels, data = read_data(test_path, one_hot_encoding=False)
 		_, val_data, _, val_lbl = split_train_val(data, labels, indices[fold])
 
-		if plain_out is True:
-			plain_out = plain_method(model_dir, model1_path, model2_path, val_data)
+		val_data = np.reshape(val_data, (-1, img_rows, img_cols, 1))
+		if method == 0:
+			plain_out = plain_method(model_dir, model1, model2, regress_models, val_data)
 			print("Normal method acc: %.4f" % (np.sum(plain_out == val_lbl) / val_lbl.shape[0]))
 		else:
-			val_data = np.reshape(val_data, (-1, img_rows, img_cols, 1))
-
-			avg_out, max_out = average_method(model_dir, model1_path, model2_path, val_data, dim=48)
+			avg_out, max_out = average_method(model_dir, model1, model2, regress_models, val_data, dim=48)
 			print("Average method acc: %.4f" % (np.sum(avg_out == val_lbl) / val_lbl.shape[0]))
-			print("Max-vote method acc: %.4f" % (np.sum(mxa_out== val_lbl) / val_lbl.shape[0]))
+			print("Max-vote method acc: %.4f" % (np.sum(max_out== val_lbl) / val_lbl.shape[0]))
 	else:
 		_, data = read_data(test_path, one_hot_encoding=False)
 
@@ -183,13 +192,17 @@ def main():
 			data = Zerocenter_ZCA_Whitening_Global_Contrast_Normalize(data, zca_mat=zca_mat)
 		'''
 
-		if plain_out is True:
-			data = np.reshape(data, (-1, img_rows, img_cols, 1))
-			out = plain_method(model_dir, model1_path, model2_path, data)
+		data = np.reshape(data, (-1, img_rows, img_cols, 1))
+		if method == 0:
+			out = plain_method(model_dir, model1, model2, regress_models, data)
 		else:
 			print("Averaging...")
-			data = np.reshape(data, (-1, img_rows, img_cols, 1))
-			out = average_method(model_dir, model1_path, model2_path, data, dim=48)
+			avg_out, max_out = average_method(model_dir, model1, model2, regress_models, data, dim=48)
+			
+			if method == 1:
+				out = max_out
+			else:
+				out = avg_out
 
 		output_result_to_file(out, out_path)
 
