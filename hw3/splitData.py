@@ -1,12 +1,38 @@
 import numpy as np
 import os
 
+def nn_feature(model, data):
+
+	from keras.models import Model
+	from keras import backend as K
+
+	model_part = K.function([model.layers[0].input, K.learning_phase()], 
+							[model.layers[-2].output])
+
+	num_data = len(data)
+	idx, batch, layer_output = 0, 500, None
+	while(idx < num_data):
+		if idx + batch > num_data:
+			end = num_data
+		else:
+			end = idx + batch
+
+		result = model_part([data[idx:end], 0])[0]
+		if layer_output is None:
+			layer_output = result
+		else:
+			layer_output = np.concatenate((layer_output, result), axis=0)
+
+		idx += batch
+
+	return layer_output
+
 def find_info(model_path):
 	name, ext = os.path.splitext(model_path)
 	fold_info = model_path.split('/')[-2]
 	k_fold, fold = fold_info.split('-')
 
-	do_zca = "zca" in mode_path
+	do_zca = "zca" in model_path
 	return int(k_fold), int(fold), do_zca
 
 

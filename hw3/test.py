@@ -17,28 +17,34 @@ def ConvertTo3DVolume(data):
 	return data
 
 
-def predict_prob(number, data, model):
+def predict_prob(number, data, model, dim):
 	toreturn = []
 	for data5 in data:
 		if number == 0:
-			toreturn.append(dataprocessing.Flip(data5))
+			toreturn.append(dataprocessing.Flip(data5, dim))
 		elif number == 1:
-			toreturn.append(dataprocessing.Roated15Left(data5))
+			toreturn.append(dataprocessing.Roated15Left(data5, dim))
 		elif number == 2:
-			toreturn.append(dataprocessing.Roated15Right(data5))
+			toreturn.append(dataprocessing.Roated15Right(data5, dim))
 		elif number == 3:
-			toreturn.append(dataprocessing.shiftedUp20(data5))
+			toreturn.append(dataprocessing.shiftedUp20(data5, dim))
 		elif number == 4:
-			toreturn.append(dataprocessing.shiftedDown20(data5))
+			toreturn.append(dataprocessing.shiftedDown20(data5, dim))
 		elif number == 5:
-			toreturn.append(dataprocessing.shiftedLeft20(data5))
+			toreturn.append(dataprocessing.shiftedLeft20(data5, dim))
 		elif number == 6:
-			toreturn.append(dataprocessing.shiftedRight20(data5))
+			toreturn.append(dataprocessing.shiftedRight20(data5, dim))
 		elif number == 7:
 			toreturn.append(data5)
 
 	toreturn = ConvertTo3DVolume(toreturn)
-	proba = model.predict_proba(toreturn)
+	try:
+		proba = model.predict_proba(toreturn)
+	except:
+		proba = model.predict(toreturn)
+
+	print(proba.shape)
+	print(proba[0])
 	return proba
 
 
@@ -51,19 +57,19 @@ def plain_method(model_path, data):
 	return out
 
 
-def average_method(model_path, data, method="average"):
+def average_method(model_path, data, method="average", dim=48):
 
 	from keras.models import load_model
 	model = load_model(model_path)
 
-	proba0 = predict_prob(0, data, model)
-	proba1 = predict_prob(1, data, model)
-	proba2 = predict_prob(2, data, model)
-	proba3 = predict_prob(3, data, model)
-	proba4 = predict_prob(4, data, model)
-	proba5 = predict_prob(5, data, model)
-	proba6 = predict_prob(6, data, model)
-	proba7 = predict_prob(7, data, model)
+	proba0 = predict_prob(0, data, model, dim)
+	proba1 = predict_prob(1, data, model, dim)
+	proba2 = predict_prob(2, data, model, dim)
+	proba3 = predict_prob(3, data, model, dim)
+	proba4 = predict_prob(4, data, model, dim)
+	proba5 = predict_prob(5, data, model, dim)
+	proba6 = predict_prob(6, data, model, dim)
+	proba7 = predict_prob(7, data, model, dim)
 
 	out = []
 	for row in zip(proba0, proba1, proba2, proba3, proba4, proba5, proba6, proba7):
@@ -103,7 +109,7 @@ def main():
 	val_test = int(sys.argv[5])
 
 
-	k_fold, fold, do_zca = find_info(test_path)
+	k_fold, fold, do_zca = find_info(model_path)
 
 	# k_fold is for testing validation data using averaging method
 	# Normallt set to 1 for regular testing
@@ -131,12 +137,28 @@ def main():
 		print("Normal method acc: %.4f" % (np.sum(plain_out == val_lbl) / val_lbl.shape[0]))
 	else:
 		_, data = read_data(test_path, one_hot_encoding=False)
+
+		'''
+		if "resnet" in model_path:
+			from scipy import misc
+			data = np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in data])
+			dim = 224
+		else:
+		'''
+		dim = 48
+
 		if do_zca is True:
 			zca_path = os.path.join( os.path.dirname(model_path), "zca_matrix.npy")
 			zca_mat = np.load(zca_path)
 			data = Zerocenter_ZCA_Whitening_Global_Contrast_Normalize(data, zca_mat=zca_mat)
 
 		data = np.asarray(data, dtype=np.float32)
+
+		'''
+		if "resnet" in model_path:
+			data = np.reshape(data, (-1, 224, 224))
+		else:
+		'''
 		data = np.reshape(data, (-1, img_rows, img_cols))
 
 		if plain_out is True:
@@ -144,7 +166,7 @@ def main():
 			out = plain_method(model_path, data)
 		else:
 			print("Averaging...")
-			out = average_method(model_path, data)
+			out = average_method(model_path, data, dim=dim)
 		output_result_to_file(out, out_path)
 
 

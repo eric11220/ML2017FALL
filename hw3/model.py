@@ -160,7 +160,9 @@ def vgg16(loss="categorical_crossentropy", dropout=0.2):
 	model.add(Flatten(name='flatten'))
 	model.add(Dense(4096, activation='relu', name='fc1'))
 	model.add(Dropout(dropout))
-	model.add(Dense(1000, activation='relu', name='fc2'))
+	model.add(Dense(4096, activation='relu', name='fc2'))
+	model.add(Dropout(dropout))
+	model.add(Dense(1000, activation='relu', name='fc3'))
 	model.add(Dropout(dropout))
 
 	if loss == 'categorical_crossentropy':

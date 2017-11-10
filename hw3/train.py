@@ -7,7 +7,7 @@ import random
 import numpy as np
 from datetime import datetime
 
-import dataprocessing
+from dataprocessing import *
 from model import *
 from splitData import *
 
@@ -59,14 +59,15 @@ def main():
 
 		if do_zca is True:
 			model_subdir = os.path.join(MODLE_DIR, model_struct, "zca_" + time_now, str(k_fold) + "-" + str(fold))
+			os.makedirs(model_subdir)
 
-			train_data, zca_mat = Zerocenter_ZCA_whitening_Global_Contrast_Normalize(train_data)
-			val_data, _ = Zerocenter_ZCA_whitening_Global_Contrast_Normalize(val_data, zca_mat)
+			train_data, zca_mat, train_mean = Zerocenter_ZCA_whitening_Global_Contrast_Normalize(train_data)
+			val_data, _, _ = Zerocenter_ZCA_whitening_Global_Contrast_Normalize(val_data, zca_mat, train_mean)
 			zca_path = os.path.join(model_subdir, 'zca_matrix.npy')
-			np.save(zca_path, zca_mat)
+			np.savez(zca_path, zca_mat, train_mean)
 		else:
 			model_subdir = os.path.join(MODLE_DIR, model_struct, time_now, str(k_fold) + "-" + str(fold))
-		os.makedirs(model_subdir)
+			os.makedirs(model_subdir)
 	
 		train_data = train_data.reshape(train_data.shape[0], img_rows, img_cols)
 		train_data = train_data.reshape(train_data.shape[0], img_rows, img_cols, 1)
