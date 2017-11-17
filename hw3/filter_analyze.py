@@ -58,11 +58,18 @@ def main():
 		# utility function to normalize a tensor by its L2 norm
 		return x / (K.sqrt(K.mean(K.square(x))) + 1e-5)
 
-	def grad_ascent(num_step,input_image_data,iter_func):
-		"""
-		Implement this function!
-		"""
-		return filter_images
+	def grad_ascent(filter_imgs, input_image_data,iter_func):
+		for step in range(NUM_STEPS):
+			loss, grad = iter_func([input_image_data, 0])
+			input_image_data += grad
+			'''
+			print(loss)
+			print(grad)
+			print(grad.shape)
+			input("")
+			'''
+			if step % RECORD_FREQ == 0:
+				filter_imgs[step // RECORD_FREQ].append((input_image_data, loss))
 
 	input_img = emotion_classifier.input
 	# visualize the area CNN see
@@ -74,7 +81,6 @@ def main():
 		photo = val_data[choose_id]
 
 		for cnt, fn in enumerate(collect_layers):
-			print(cnt)
 			im = fn([photo.reshape(1, img_rows, img_cols,1),0])
 			fig = plt.figure(figsize=(14,8))
 			nb_filter = im[0].shape[3]
@@ -98,31 +104,31 @@ def main():
 		for cnt, c in enumerate(collect_layers):
 			filter_imgs = [[] for i in range(NUM_STEPS//RECORD_FREQ)]
 			nb_filter = c.shape[-1]
+
+			nb_filter = min(nb_filter, 64)
 			for filter_idx in range(nb_filter):
+				print("Processing filter %d..." % filter_idx)
 				input_img_data = np.random.random((1, img_rows, img_cols, 1))
 				loss = K.mean(c[:,:,:,filter_idx])
 				grads = normalize(K.gradients(loss,input_img)[0])
-				iterate = K.function([input_img],[loss,grads])
+				iterate = K.function([input_img, K.learning_phase()],[loss,grads])
 
-				"""
-				"You need to implement it."
-				filter_imgs = grad_ascent(num_step, input_img_data, iterate)
-				"""
+				grad_ascent(filter_imgs, input_img_data, iterate)
 
-			for it in range(NUM_STEPS//RECORD_FREQ):
-				fig = plt.figure(figsize=(14,8))
-				for i in range(nb_filter):
-					ax = fig.add_subplot(int(nb_filter)/16,16,i+1)
-					ax.imshow(filter_imgs[it][i][0],cmap='Purples')
-					plt.xticks(np.array([]))
-					plt.yticks(np.array([]))
-					plt.xlabel('{:.3f}'.format(filter_imgs[it][i][1]))
-					plt.tight_layout()
-				fig.suptitle('Filters of layer {} (# Ascent Epoch {} )'.format(name_ls[0],itRECORD_FREQ))
-				img_path = os.path.join(filter_dir,'{}-{}'.format(store_path,name_ls[0]))
-				if not os.path.isdir(img_path):
-					os.mkdir(img_path)
-				fig.savefig(os.path.join(img_path,'e{}'.format(itRECORD_FREQ)))
+			fig = plt.figure(figsize=(14,8))
+			for i in range(nb_filter):
+				ax = fig.add_subplot(int(nb_filter)/3,3,i+1)
+				ax.imshow(filter_imgs[-1][i][0][0, :, :, 0],cmap='Purples')
+				plt.xticks(np.array([]))
+				plt.yticks(np.array([]))
+				plt.xlabel('filter %d' % i)
+				plt.tight_layout()
+			fig.suptitle('Filters of layer {} (# Ascent Epoch {} )'.format(name_ls[0], NUM_STEPS))
+
+			img_path = os.path.join(filter_dir,'{}'.format(name_ls[0]))
+			if not os.path.isdir(img_path):
+				os.mkdir(img_path)
+			fig.savefig(os.path.join(img_path,'e{}'.format(NUM_STEPS)))
 
 if __name__ == "__main__":
 	main()
