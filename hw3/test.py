@@ -98,15 +98,18 @@ def output_result_to_file(out, out_path):
 
 def main():
 	argc = len(sys.argv)
-	if argc != 6:
-		print("Usage: python test.py model_path test_path out_path plain_out val_test")
+	if argc < 6:
+		print("Usage: python test.py test_path out_path plain_out val_test model_path...")
 		exit()
 
-	model_path = sys.argv[1]
-	test_path = sys.argv[2]
-	out_path = sys.argv[3]
-	method = int(sys.argv[4])
-	val_test = int(sys.argv[5])
+	test_path = sys.argv[1]
+	out_path = sys.argv[2]
+	method = int(sys.argv[3])
+	val_test = int(sys.argv[4])
+
+	model_paths = []
+	for idx in range(5, argc):
+		model_paths.append(sys.argv[idx])
 
 	#k_fold, fold, do_zca = find_info(model_path)
 
@@ -150,10 +153,13 @@ def main():
 
 		data = np.asarray(data, dtype=np.float32)
 		data = np.reshape(data, (-1, img_rows, img_cols))
+		data = data[:, :, :, np.newaxis]
 
-		if method == 0:
-			data = data[:, :, :, np.newaxis]
-			out = plain_method(model_path, data)
+		for idx, model_path in enumerate(model_paths):
+			if method == 0:
+				out = plain_method(model_path, data)
+
+			output_result_to_file(out, str(idx+1) + ".csv")
 
 		'''
 		else:
@@ -166,7 +172,6 @@ def main():
 				out = avg_out
 		'''
 
-		output_result_to_file(out, out_path)
 
 
 if __name__ == "__main__":
