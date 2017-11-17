@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import sys
 
-import dataprocessing
+#import dataprocessing
 from splitData import *
 
 img_rows, img_cols, nb_classes = 48, 48, 7
@@ -16,7 +16,7 @@ def ConvertTo3DVolume(data):
 
 	return data
 
-
+'''
 def predict_prob(number, data, model, dim):
 	toreturn = []
 	for data5 in data:
@@ -44,15 +44,6 @@ def predict_prob(number, data, model, dim):
 		proba = model.predict(toreturn)
 
 	return proba
-
-
-def plain_method(model_path, data):
-	from keras.models import load_model
-	model = load_model(model_path)
-
-	proba = model.predict(data)
-	out = np.argmax(proba, axis=1)
-	return out
 
 
 def average_method(model_path, data, method="average", dim=48):
@@ -85,6 +76,16 @@ def average_method(model_path, data, method="average", dim=48):
 	avg_out = np.array(avg_out)
 	max_out = np.array(max_out)
 	return avg_out, max_out
+'''
+
+
+def plain_method(model_path, data):
+	from keras.models import load_model
+	model = load_model(model_path)
+
+	proba = model.predict(data)
+	out = np.argmax(proba, axis=1)
+	return out
 
 
 def output_result_to_file(out, out_path):
@@ -140,10 +141,12 @@ def main():
 
 		dim = 48
 
+		'''
 		if do_zca is True:
 			zca_path = os.path.join( os.path.dirname(model_path), "zca_matrix.npy")
 			zca_mat = np.load(zca_path)
 			data = Zerocenter_ZCA_Whitening_Global_Contrast_Normalize(data, zca_mat=zca_mat)
+		'''
 
 		data = np.asarray(data, dtype=np.float32)
 		data = np.reshape(data, (-1, img_rows, img_cols))
@@ -151,6 +154,8 @@ def main():
 		if method == 0:
 			data = data[:, :, :, np.newaxis]
 			out = plain_method(model_path, data)
+
+		'''
 		else:
 			avg_out, max_out = average_method(model_path, data, dim=dim)
 			if method == 1:
@@ -159,6 +164,7 @@ def main():
 			else:
 				print("\nAveraging...")
 				out = avg_out
+		'''
 
 		output_result_to_file(out, out_path)
 
