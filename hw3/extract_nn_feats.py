@@ -3,6 +3,7 @@ from splitData import *
 
 img_rows, img_cols, nb_classes = 48, 48, 7
 concat_dir = "concat_feats"
+MODEL_DIR = "models"
 
 def main():
 	argc = len(sys.argv)
@@ -44,13 +45,13 @@ def main():
 	model2 = load_model(model_in2)
 
 	# Copy model to feat_ensemble
-	model_subdir = os.path.join(MODLE_DIR, 'feat_ensemble', os.path.splitext(os.path.basename(train))[0])
+	model_subdir = os.path.join(MODEL_DIR, 'feat_ensemble', os.path.splitext(os.path.basename(feat_file))[0])
 	if not os.path.isdir(model_subdir):
 		os.makedirs(model_subdir)
 
 	from shutil import copyfile
-	copyfile(model_in1, os.path.join(model_subdir, model_in1))
-	copyfile(model_in2, os.path.join(model_subdir, model_in2))
+	copyfile(model_in1, os.path.join(model_subdir, os.path.basename(model_in1)))
+	copyfile(model_in2, os.path.join(model_subdir, os.path.basename(model_in2)))
 	
 	num_data = len(data)
 	idx, batch = 0, 100

@@ -5,14 +5,15 @@ import os
 import sys
 import random
 import numpy as np
-from datetime import datetime
+import matplotlib
+matplotlib.use('Agg')
 
+from datetime import datetime
 from dataprocessing import *
 from model import *
 from splitData import *
 
 MODLE_DIR = 'models'
-
 
 def main():
 	argc = len(sys.argv)
@@ -50,7 +51,7 @@ def main():
 	
 	time_now = datetime.now().strftime('%m-%d_%H:%M')
 	fold_order = list(range(k_fold))
-	random.shuffle(fold_order)
+	fold_order = [0]
 
 	sum_acc, sum_err = 0, 0
 	for fold in fold_order:
@@ -78,6 +79,12 @@ def main():
 			model = orig_model(loss)
 		elif model_struct == "vgg16":
 			model = vgg16(loss, dropout)
+		elif model_struct == "fc":
+			model = fc_model(loss)
+			train_data = train_data.reshape(train_data.shape[0], -1)
+			val_data = val_data.reshape(val_data.shape[0], -1)
+			print(train_data.shape)
+			print(val_data.shape)
 		elif model_struct == "resnet50":
 			from scipy import misc
 			train_data = np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in train_data])
@@ -88,26 +95,49 @@ def main():
 		
 		filepath = os.path.join(model_subdir, 'Model.{epoch:02d}-{val_acc:.4f}-{val_loss:.4f}.hdf5')
 		checkpointer = keras.callbacks.ModelCheckpoint(filepath, monitor='val_acc', verbose=10, save_best_only=True, mode='auto')
+		tensorboard = keras.callbacks.TensorBoard()
 		
-		datagen = ImageDataGenerator(
-		    featurewise_center=False,  # set input mean to 0 over the dataset
-		    samplewise_center=False,  # set each sample mean to 0
-		    featurewise_std_normalization=False,  # divide inputs by std of the dataset
-		    samplewise_std_normalization=False,  # divide each input by its std
-		    zca_whitening=False,  # apply ZCA whitening
-		    rotation_range=40,  # randomly rotate images in the range (degrees, 0 to 180)
-		    width_shift_range=0.2,  # randomly shift images horizontally (fraction of total width)
-		    height_shift_range=0.2,  # randomly shift images vertically (fraction of total height)
-		    horizontal_flip=True,  # randomly flip images
-		    vertical_flip=False)  # randomly flip images
-		
-		datagen.fit(train_data)
-		model.fit_generator(datagen.flow(train_data, train_lbl,
-		                    batch_size=batch_size),
-		                    train_data.shape[0]/batch_size,
-		                    epochs=nb_epoch,
-		                    validation_data=(val_data, val_lbl),
-		                    callbacks=[checkpointer])
+		if model_struct != 'fc':
+			datagen = ImageDataGenerator(
+				zoom_range=[0.9, 1.1],
+				shear_range=20,
+				rotation_range=40,  # randomly rotate images in the range (degrees, 0 to 180)
+				width_shift_range=0.2,  # randomly shift images horizontally (fraction of total width)
+				height_shift_range=0.2,  # randomly shift images vertically (fraction of total height)
+				horizontal_flip=True)  # randomly flip images
+					#vertical_flip=False)  # randomly flip images
+
+			datagen.fit(train_data)
+			hist = model.fit_generator(datagen.flow(train_data, train_lbl,
+								batch_size=batch_size),
+								train_data.shape[0]/batch_size,
+								epochs=nb_epoch,
+								validation_data=(val_data, val_lbl),
+								callbacks=[checkpointer])
+		else:
+			hist = model.fit(train_data,
+											train_lbl,
+											batch_size=batch_size,
+											epochs=nb_epoch,
+											validation_data=(val_data, val_lbl),
+											callbacks=[checkpointer])
+
+		# Plot training and validation accuracies
+		val_acc = hist.history["val_acc"]
+		train_acc = hist.history["acc"]
+
+		from matplotlib import pyplot as plt
+
+		plt.title("Accuracy of model")
+		plt.plot(train_acc, color='b', label='train')
+		plt.plot(val_acc, color='r', label='valid')
+		plt.legend(loc='lower right')
+
+		plt.ylabel("Accuracy")
+		plt.xlabel("# of epoch")
+
+		plt.tight_layout()
+		plt.savefig(os.path.join(model_subdir, "train_val_acc.jpg"))
 		
 if __name__ == '__main__':
 	main()

@@ -41,15 +41,6 @@ def train_logistic_model(train_data, train_lbl, val_data, val_lbl, cls, model_su
 	model.compile(optimizer='adam', 
 								loss='mean_squared_error', 
 								metrics=['accuracy']) 
-
-	'''
-	cls_dir = os.path.join(model_subdir, str(cls))
-	if not os.path.isdir(cls_dir):
-		os.mkdir(cls_dir)
-	
-	filepath = os.path.join(cls_dir, 'Model.{epoch:02d}-{val_acc:.4f}-{val_loss:.4f}.hdf5')
-	checkpointer = keras.callbacks.ModelCheckpoint(filepath, monitor='val_loss', verbose=10, save_best_only=True, mode='auto')
-	'''
 	
 	# Only save the last model
 	filepath = os.path.join(model_subdir, 'Model' + str(cls) + '_{val_loss:.4f}.hdf5')

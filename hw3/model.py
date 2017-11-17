@@ -124,45 +124,77 @@ def resnet50():
 	input("check model summary")
 	return model
 
-def vgg16(loss="categorical_crossentropy", dropout=0.2):
+
+def add_conv_block(model, n_kernel, ksize, block_num, conv_num, activation="relu", batch_norm=False, input_shape=None):
+	conv_name = 'block' + str(block_num) + "_conv" + str(conv_num)
+	batch_name = 'bn_b' + str(block_num) + '_c' + str(conv_num)
+	if input_shape is not None:
+		model.add(Conv2D(n_kernel, (ksize, ksize), padding='same', input_shape=input_shape, name=conv_name))
+	else:
+		model.add(Conv2D(n_kernel, (ksize, ksize), padding='same', name=conv_name))
+
+	if activation == "relu":
+		model.add(Activation("relu"))
+	elif activation == "PReLU":
+		model.add(keras.layers.PReLU(alpha_initializer='zeros'))
+	elif activation == "LeakyReLU":
+		model.add(keras.layers.LeakyReLU())
+
+	if batch_norm is True:
+		model.add(BatchNormalization(name=batch_name))
+
+def add_fc_block(model, n_kernel, fc_num, activation="relu"):
+	name = "fc" + str(fc_num)
+	model.add(Dense(n_kernel, name=name))
+	if activation == "relu":
+		model.add(Activation("relu"))
+	elif activation == "PReLU":
+		model.add(keras.layers.PReLU(alpha_initializer='zeros'))
+	elif activation == "LeakyReLU":
+		model.add(keras.layers.LeakyReLU())
+
+def vgg16(loss="categorical_crossentropy", dropout=0.2, batch_norm=True, relu="LeakyReLU"):
 	input_shape = (img_rows, img_cols, 1)
 
 	# Block 1
 	model = Sequential()
-	model.add(Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=input_shape, name='block1_conv1'))
-	model.add(Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv2'))
+	add_conv_block(model, 64, 3, 1, 1, activation=relu, batch_norm=batch_norm, input_shape=input_shape)
+	add_conv_block(model, 64, 3, 1, 2, activation=relu, batch_norm=batch_norm)
 	model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block1_pool'))
 
 	# Block 2
-	model.add(Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv1'))
-	model.add(Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv2'))
+	add_conv_block(model, 128, 3, 2, 1, activation=relu, batch_norm=batch_norm)
+	add_conv_block(model, 128, 3, 2, 2, activation=relu, batch_norm=batch_norm)
 	model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block2_pool'))
 
 	# Block 3
-	model.add(Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv1'))
-	model.add(Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv2'))
-	model.add(Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv3'))
+	add_conv_block(model, 256, 3, 3, 1, activation=relu, batch_norm=batch_norm)
+	add_conv_block(model, 256, 3, 3, 2, activation=relu, batch_norm=batch_norm)
+	add_conv_block(model, 256, 3, 3, 3, activation=relu, batch_norm=batch_norm)
 	model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block3_pool'))
 
 	# Block 4
-	model.add(Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv1'))
-	model.add(Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv2'))
-	model.add(Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv3'))
+	add_conv_block(model, 512, 3, 4, 1, activation=relu, batch_norm=batch_norm)
+	add_conv_block(model, 512, 3, 4, 2, activation=relu, batch_norm=batch_norm)
+	add_conv_block(model, 512, 3, 4, 3, activation=relu, batch_norm=batch_norm)
 	model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block4_pool'))
 
 	# Block 5
-	model.add(Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv1'))
-	model.add(Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv2'))
-	model.add(Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv3'))
+	add_conv_block(model, 512, 3, 5, 1, activation=relu, batch_norm=batch_norm)
+	add_conv_block(model, 512, 3, 5, 2, activation=relu, batch_norm=batch_norm)
+	add_conv_block(model, 512, 3, 5, 3, activation=relu, batch_norm=batch_norm)
 	model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool'))
 
 	# Classification block
 	model.add(Flatten(name='flatten'))
-	model.add(Dense(4096, activation='relu', name='fc1'))
+
+	add_fc_block(model, 4096, 1, activation=relu)
 	model.add(Dropout(dropout))
-	model.add(Dense(4096, activation='relu', name='fc2'))
+
+	add_fc_block(model, 4096, 2, activation=relu)
 	model.add(Dropout(dropout))
-	model.add(Dense(1000, activation='relu', name='fc3'))
+
+	add_fc_block(model, 1000, 3, activation=relu)
 	model.add(Dropout(dropout))
 
 	if loss == 'categorical_crossentropy':
@@ -174,6 +206,27 @@ def vgg16(loss="categorical_crossentropy", dropout=0.2):
 	model.compile(loss=loss,
 				  optimizer=ada,
 				  metrics=['accuracy'])
+	model.summary()
+	return model
+
+
+def fc_model(loss):
+	model = Sequential()
+	model.add(Dense(2000, input_shape=(img_rows*img_cols, ), activation='relu'))
+	for _ in range(5):
+		model.add(Dense(2000, activation='relu'))
+	for _ in range(12):
+		model.add(Dense(1000, activation='relu'))
+	model.add(Dense(512, activation='relu'))
+	model.add(Dense(128, activation='relu'))
+	model.add(Dense(7))
+	model.add(Activation('softmax'))
+
+	ada = Adadelta(lr=0.1, rho=0.95, epsilon=1e-08)
+	model.compile(loss=loss,
+				  optimizer=ada,
+				  metrics=['accuracy'])
+
 	model.summary()
 	return model
 

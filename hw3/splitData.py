@@ -30,10 +30,15 @@ def nn_feature(model, data):
 def find_info(model_path):
 	name, ext = os.path.splitext(model_path)
 	fold_info = model_path.split('/')[-2]
-	k_fold, fold = fold_info.split('-')
+
+	try:
+		k_fold, fold = fold_info.split('-')
+		k_fold, fold = int(k_fold), int(fold)
+	except:
+		k_fold, fold = None, None
 
 	do_zca = "zca" in model_path
-	return int(k_fold), int(fold), do_zca
+	return k_fold, fold, do_zca
 
 
 def convert_to_svm_label(labels, n_class=7):

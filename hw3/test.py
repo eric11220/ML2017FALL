@@ -43,8 +43,6 @@ def predict_prob(number, data, model, dim):
 	except:
 		proba = model.predict(toreturn)
 
-	print(proba.shape)
-	print(proba[0])
 	return proba
 
 
@@ -71,21 +69,22 @@ def average_method(model_path, data, method="average", dim=48):
 	proba6 = predict_prob(6, data, model, dim)
 	proba7 = predict_prob(7, data, model, dim)
 
-	out = []
+	from collections import Counter
+
+	avg_out, max_out = [], []
 	for row in zip(proba0, proba1, proba2, proba3, proba4, proba5, proba6, proba7):
-		# Row is of size (#transfored_imgs, #n_classes)
-		if method == "average":
-			a = np.argmax(np.array(row).mean(axis=0))
-			out.append(a)
-		elif method == "max_vote":
-			from collections import Counter
-			row = np.asarray(row)
-			row = np.argmax(row, axis=1)
-			a = Counter(row).most_common(1)[0][0]
-			out.append(a)
+		a = np.argmax(np.array(row).mean(axis=0))
+		avg_out.append(a)
+
+
+		row = np.asarray(row)
+		row = np.argmax(row, axis=1)
+		a = Counter(row).most_common(1)[0][0]
+		max_out.append(a)
 	
-	out = np.array(out)
-	return out
+	avg_out = np.array(avg_out)
+	max_out = np.array(max_out)
+	return avg_out, max_out
 
 
 def output_result_to_file(out, out_path):
@@ -105,9 +104,8 @@ def main():
 	model_path = sys.argv[1]
 	test_path = sys.argv[2]
 	out_path = sys.argv[3]
-	plain_out = sys.argv[4] == "1"
+	method = int(sys.argv[4])
 	val_test = int(sys.argv[5])
-
 
 	k_fold, fold, do_zca = find_info(model_path)
 
@@ -117,34 +115,29 @@ def main():
 		from keras.utils import np_utils
 		#labels, data = read_data(test_path, one_hot_encoding=False)
 
-		indice_path = name + "_" + str(k_fold) + "fold"
+		indice_path = "data/train_" + str(k_fold) + "fold"
 		if not os.path.isfile(indice_path):
 			indices = gen_val_indices(train, k_fold)
 		else:
 			indices = get_val_indices(indice_path)
 
-		labels, data = read_data(test_path, one_hot_encoding=False)
+		labels, data = read_data("data/train.csv", one_hot_encoding=False)
 		_, val_data, _, val_lbl = split_train_val(data, labels, indices[fold])
 
-		val_data = val_data[:, :, :, np.newaxis]
+		val_data = np.reshape(val_data, (-1, img_rows, img_cols, 1))
 		val_lbl = np.asarray(val_lbl, dtype=np.uint8)
 
-		avg_out = average_method(model_path, val_data)
-		print("Average method acc: %.4f" % (np.sum(avg_out == val_lbl) / val_lbl.shape[0]))
-
-		val_data = np.reshape(val_data, (-1, img_rows, img_cols, 1))
+		avg_out, max_out = average_method(model_path, val_data)
 		plain_out = plain_method(model_path, val_data)
-		print("Normal method acc: %.4f" % (np.sum(plain_out == val_lbl) / val_lbl.shape[0]))
+		with open("record.txt", "a") as outf:
+			outf.write("%s:\t\tAverage acc: %.4f, max-out acc: %.4f, normal acc: %.4f\n" % \
+											(model_path,
+											 (np.sum(avg_out == val_lbl) / val_lbl.shape[0]),
+											 (np.sum(max_out == val_lbl) / val_lbl.shape[0]),
+											 (np.sum(plain_out == val_lbl) / val_lbl.shape[0])))
 	else:
 		_, data = read_data(test_path, one_hot_encoding=False)
 
-		'''
-		if "resnet" in model_path:
-			from scipy import misc
-			data = np.asarray([misc.imresize(np.reshape(img, [img_rows, img_cols]), (224, 224)) for img in data])
-			dim = 224
-		else:
-		'''
 		dim = 48
 
 		if do_zca is True:
@@ -153,20 +146,20 @@ def main():
 			data = Zerocenter_ZCA_Whitening_Global_Contrast_Normalize(data, zca_mat=zca_mat)
 
 		data = np.asarray(data, dtype=np.float32)
-
-		'''
-		if "resnet" in model_path:
-			data = np.reshape(data, (-1, 224, 224))
-		else:
-		'''
 		data = np.reshape(data, (-1, img_rows, img_cols))
 
-		if plain_out is True:
+		if method == 0:
 			data = data[:, :, :, np.newaxis]
 			out = plain_method(model_path, data)
 		else:
-			print("Averaging...")
-			out = average_method(model_path, data, dim=dim)
+			avg_out, max_out = average_method(model_path, data, dim=dim)
+			if method == 1:
+				print("\nMax-out...")
+				out = max_out
+			else:
+				print("\nAveraging...")
+				out = avg_out
+
 		output_result_to_file(out, out_path)
 
 
