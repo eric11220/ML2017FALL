@@ -108,7 +108,7 @@ def main():
 	method = int(sys.argv[4])
 	val_test = int(sys.argv[5])
 
-	k_fold, fold, do_zca = find_info(model_path)
+	#k_fold, fold, do_zca = find_info(model_path)
 
 	# k_fold is for testing validation data using averaging method
 	# Normallt set to 1 for regular testing
