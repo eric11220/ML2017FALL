@@ -6,6 +6,6 @@ wget https://www.dropbox.com/s/czyeh7ddocprsyo/Model.253-0.7031-0.9231.hdf5?dl=0
 wget https://www.dropbox.com/s/xc8kdgniu5p4l6f/Model.419-0.6871-1.6949.hdf5?dl=0
 
 # Run each model
-time CUDA_VISIBLE_DEVICES="" python3 test.py $1 place_holder 0 0 Model.211-0.6870-0.9480.hdf5?dl=0 Model.253-0.7031-0.9231.hdf5?dl=0 Model.419-0.6871-1.6949.hdf5?dl=0
+python3 test.py $1 place_holder 0 0 Model.211-0.6870-0.9480.hdf5?dl=0 Model.253-0.7031-0.9231.hdf5?dl=0 Model.419-0.6871-1.6949.hdf5?dl=0
 python3 ensemble.py 1.csv 2.csv 3.csv $2
 
