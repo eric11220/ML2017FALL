@@ -7,8 +7,20 @@ def contain_http(string):
 	return "http" in string
 
 
+def contain_number(string):
+	return any(char.isdigit() for char in string)
+
+
 def is_ascii(string):
 	return all(ord(c) < 128 for c in string)
+
+
+def num_letter_mix(string):
+	return re.match('^(?=.*[a-zA-Z])(?=.*[0-9])', string)
+
+
+def remove_marks(string):
+	return "".join([char for char in string if char.isalnum()])
 
 
 def main():
@@ -45,10 +57,11 @@ def main():
 					# at least one character not in ascii
 					if not is_ascii(element):
 						continue
-	
-					# all characters are alphanumeric
-					if re.match('\w', element) is not None:
-						outf.write(element + ' ')
+
+					if num_letter_mix(element):
+						continue
+
+					outf.write(remove_marks(element) + ' ')
 				outf.write("\n")
 
 
