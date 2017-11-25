@@ -4,7 +4,7 @@ def gen_word_embeddings(*args, cutoff=10):
 	word_dict = {}
 	for path in args:
 		with open(path, 'r') as inf:
-			for line in data:
+			for line in inf:
 				line = line.strip().split()
 				for word in line:
 					if word_dict.get(word, None) is None:

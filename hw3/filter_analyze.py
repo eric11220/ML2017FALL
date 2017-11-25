@@ -88,7 +88,7 @@ def main():
 			for i in range(nb_filter):
 				print("processing filter %d..." % i)
 				ax = fig.add_subplot(nb_filter/16,16,i+1)
-				ax.imshow(im[0][0,:,:,i],cmap='Purples')
+				ax.imshow(im[0][0,:,:,i],cmap='gray')
 				plt.xticks(np.array([]))
 				plt.yticks(np.array([]))
 				plt.tight_layout()
@@ -117,8 +117,8 @@ def main():
 
 			fig = plt.figure(figsize=(14,8))
 			for i in range(nb_filter):
-				ax = fig.add_subplot(int(nb_filter)/3,3,i+1)
-				ax.imshow(filter_imgs[-1][i][0][0, :, :, 0],cmap='Purples')
+				ax = fig.add_subplot(int(nb_filter)/16,16,i+1)
+				ax.imshow(filter_imgs[-1][i][0][0, :, :, 0],cmap='gray')
 				plt.xticks(np.array([]))
 				plt.yticks(np.array([]))
 				plt.xlabel('filter %d' % i)
