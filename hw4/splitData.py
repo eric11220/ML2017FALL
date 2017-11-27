@@ -3,12 +3,17 @@ import os
 
 
 def padd_zero(data, max_len):
+	dup = []
 	for row in data:
 		length = len(row)
-		for _ in range(length, max_len):
-			row.append(0)
 
-	return np.asarray(data, dtype=int)
+		tmp_row = np.array(row)
+		for _ in range(length, max_len):
+			tmp_row = np.append(tmp_row, 0)
+
+		dup.append(tmp_row)
+
+	return np.array(dup, dtype=int)
 
 
 def read_data(data_csv, label_csv, word_index, handle_oov=False, one_hot=True):
@@ -17,7 +22,7 @@ def read_data(data_csv, label_csv, word_index, handle_oov=False, one_hot=True):
 	if label_csv is not None:
 		label_inf = open(label_csv, 'r')
 
-	data, labels, max_len = [], [], 0
+	data, labels, lens = [], [], []
 	with open(data_csv, 'r') as inf:
 		for line in inf:
 			if label_csv is not None:
@@ -37,17 +42,16 @@ def read_data(data_csv, label_csv, word_index, handle_oov=False, one_hot=True):
 
 			length = len(row_data)
 			if length > 0:
-				if length > max_len:
-					max_len = length
+				lens.append(length)
 
 				data.append(row_data)
 				if label_csv is not None:
 					labels.append(label)
 
-	if one_hot is True:
+	if one_hot is True and label_csv is not None:
 		from keras.utils import to_categorical
 		labels = to_categorical(np.asarray(labels, dtype=int))
-	return data, labels, max_len
+	return np.array(data, dtype=object), labels, np.asarray(lens)
 
 
 def split_train_val(data, labels, val_indices):

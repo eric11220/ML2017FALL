@@ -33,7 +33,8 @@ def main():
 	labeled = sys.argv[2] == '1'
 
 	name, ext = os.path.splitext(in_file)
-	out_file = os.path.join(PROCESSED_DIR, in_file)
+	basename = os.path.basename(in_file)
+	out_file = os.path.join(PROCESSED_DIR, basename)
 
 	if labeled is True:
 		label_fp = open(os.path.join(PROCESSED_DIR, name + '_label' + ext), 'w')
