@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import _pickle as pk
+
 from datetime import datetime
 from keras.preprocessing import sequence
 from keras.preprocessing.text import Tokenizer
@@ -14,15 +16,14 @@ def main():
 	np.set_printoptions(suppress=True)
 
 	args = parse_input()
-	x, y = load_data_label('data/train_data_no_punc.txt', 'data/train_label.txt')
+	x, y = load_train_data(args.train_path)
 
 	tokenizer = Tokenizer(num_words=args.top_words)
 	tokenizer.fit_on_texts(x)
 
+	import operator
 	if args.wordvec is not None:
 		wordvec, veclen = load_wordvec(args.wordvec)
-
-		import operator
 		sorted_word_counts = sorted(tokenizer.word_counts.items(), key=operator.itemgetter(1), reverse=True)
 
 		word_index = tokenizer.word_index
@@ -36,6 +37,26 @@ def main():
 			# words not found in embedding index will be treated as unknown. yet, should not enter here
 			else:
 				embedding_matrix[idx] = wordvec['<unk>']
+	elif args.gensim is not None:
+		from gensim.models import Word2Vec
+		wordvec = Word2Vec.load(args.gensim)
+		veclen = 256
+
+		cnt = 0
+		word_index = tokenizer.word_index
+		sorted_word_counts = sorted(tokenizer.word_counts.items(), key=operator.itemgetter(1), reverse=True)
+		embedding_matrix = np.zeros((args.top_words + 1, veclen))
+		for word, count in sorted_word_counts[:args.top_words]:
+			if word in wordvec:
+				embedding_vector = wordvec[word]
+			else:
+				embedding_vector = np.zeros((veclen,))
+				cnt += 1
+
+			idx = word_index[word]
+			if embedding_vector is not None:
+				embedding_matrix[idx] = embedding_vector
+			# words not found in embedding index will be treated as unknown. yet, should not enter here
 	else:
 		embedding_matrix = None
 
@@ -57,6 +78,8 @@ def main():
 		model_subdir = os.path.join(model_dir, "%s-%s" % (str(args.kfold), str(cv_idx)))
 		if not os.path.isdir(model_subdir):
 			os.makedirs(model_subdir)
+		tokenizer_path = os.path.join(model_subdir, "tokenizer.pk")
+		pk.dump(tokenizer, open(tokenizer_path, 'wb'))
 		
 		X_train = [x[idx] for idx in train_index]
 		y_train = [y[idx] for idx in train_index]
@@ -77,7 +100,7 @@ def main():
 
 		X_train = sequence.pad_sequences(X_train, maxlen=maxlen, padding="pre")
 		X_val = sequence.pad_sequences(X_val, maxlen=maxlen, padding="pre")
-		
+
 		model = create_model(args.top_words+1,
 										args.embedding_vector_length,
 										embedding_matrix,
@@ -86,6 +109,7 @@ def main():
 
 		best_acc = 0.
 		for epoch in range(10):
+			#print(model.layers[0].get_weights()[0][1:5])
 			hist = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=1, batch_size=64)
 
 			val_acc, val_loss = hist.history['val_acc'][0], hist.history['val_loss'][0]
@@ -98,8 +122,6 @@ def main():
 				new_X_train, new_y_train = get_new_data(model, X_unlabeled, args.thresh)
 				X_train = np.vstack((X_train, new_X_train))
 				y_train = np.concatenate((y_train, new_y_train))
-
-		break
 
 
 if __name__ == "__main__":

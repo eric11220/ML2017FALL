@@ -20,6 +20,17 @@ def load_data_label(data_path, label_path, len_limit=None):
 	return data, labels
 
 
+def load_train_data(data_path):
+	data, labels = [], []
+	with open(data_path, 'r') as inf:
+		for line in inf:
+			label, sent = line.strip().split(' +++$+++ ')
+			data.append(sent)
+			labels.append(label)
+
+	return data, labels
+
+
 def load_test_data(path):
 	sequences = []
 	with open(path, 'r') as inf:

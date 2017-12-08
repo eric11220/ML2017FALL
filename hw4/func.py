@@ -1,10 +1,16 @@
 import argparse
 import numpy as np
-from keras.models import Sequential
+from keras.models import Sequential, Model
 from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers import GRU
 from keras.layers import Dropout
+
+from keras.layers import Input
+from keras.layers import Conv1D
+from keras.layers import MaxPooling1D
+from keras.layers import concatenate, merge
+from keras.layers import Bidirectional
 from keras.layers.embeddings import Embedding
 
 
@@ -44,13 +50,15 @@ def create_model(top_words, embedding_vector_length, wordvec, trainable, dropout
 												embedding_vector_length, 
 												weights=[wordvec],
 												trainable=trainable,
-												mask_zero=False))
+												mask_zero=True))
 	else:
 		model.add(Embedding(top_words, 
 												embedding_vector_length, 
 												mask_zero=True))
 
-	model.add(GRU(200, dropout= dropout, recurrent_dropout=0., return_sequences=False))
+	model.add(LSTM(256, dropout=dropout, recurrent_dropout=0., return_sequences=True))
+	model.add(LSTM(256, dropout=dropout, recurrent_dropout=0., return_sequences=False))
+
 	model.add(Dense(embedding_vector_length // 2, activation='relu'))
 	model.add(Dense(1, activation='sigmoid'))
 	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
@@ -58,31 +66,27 @@ def create_model(top_words, embedding_vector_length, wordvec, trainable, dropout
 	return model
 
 
-def conv_model(top_words, embedding_vector_length, wordvec, trainable, dropout):
-	from keras.layers import Conv1D
-	from keras.layers import MaxPooling1D
+def sequences_to_bow(data, top_words):
+	ret = np.zeros((len(data), top_words))
+	for no, text in enumerate(data):
+		for idx in text:
+			ret[no, idx] += 1
 
+	return ret
+
+
+def bow_model(top_words, dropout):
 	model = Sequential()
-	if wordvec is not None:
-		embedding_vector_length = wordvec.shape[1]
-		model.add(Embedding(top_words, 
-												embedding_vector_length, 
-												weights=[wordvec],
-												trainable=trainable,
-												mask_zero=False))
-	else:
-		model.add(Embedding(top_words, 
-												embedding_vector_length, 
-												mask_zero=False))
 
-	model.add(Conv1D(filters=embedding_vector_length, kernel_size=3, padding='same', activation='relu'))
-	model.add(MaxPooling1D(pool_size=2))
-	model.add(GRU(100, recurrent_dropout=dropout, return_sequences=False))
+	model.add(Dense(1024, input_shape=(top_words,), activation='relu'))
+	model.add(Dropout(dropout))
+	model.add(Dense(256, activation='relu'))
+	model.add(Dropout(dropout))
 	model.add(Dense(1, activation='sigmoid'))
+
 	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 	print(model.summary())
 	return model
-
 
 
 def parse_input():
@@ -95,14 +99,18 @@ def parse_input():
 			raise argparse.ArgumentTypeError('Boolean value expected.')
 
 	parser = argparse.ArgumentParser()
+	parser.add_argument("train_path", help="Train data location")
+
 	parser.add_argument("--kfold", help="K-fold cross validation", type=int, default=10)
 	parser.add_argument("--top_words", help="Top words in tokenization", type=int, default=10000)
 	parser.add_argument("--embedding_vector_length", help="Word embedding vector size", type=int, default=64)
 	parser.add_argument("--dropout", help="Dropout rate for RNN", type=float, default=0.)
-	parser.add_argument("--unlabeled", help="Unlabeled data for self-learning")
 	parser.add_argument("--cell", help="RNN Cell", default="GRU")
 	parser.add_argument("--trainable", help="Whether embedding layer is trainable", type=str2bool, default=True)
 	parser.add_argument("--thresh", help="Confidence for accepting unlabeled data", type=float, default=0.9)
+
+	parser.add_argument("--unlabeled", help="Unlabeled data for self-learning")
 	parser.add_argument("--wordvec", help="Pretrained word vector file")
+	parser.add_argument("--gensim", help="Pretrained word vector from Gensim")
 	parser.add_argument("--modeldir", help="Directory for storing models")
 	return parser.parse_args()
