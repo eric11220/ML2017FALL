@@ -1,0 +1,4 @@
+*.swp
+data
+wordvec
+.DS_STORE
