@@ -1,3 +1,4 @@
+import numpy as np
 import _pickle as pk
 
 
@@ -39,19 +40,34 @@ def load_wordvec(path, pickle=False):
 			cnt = 0
 			for line in inf:
 				word, vec_line = line.strip().split(" ", 1)
-				if any(ord(c) < 128 for c in word) is True:
-					continue
-				cnt += 1
-				vec = vec_line.split(" ")
-				wordvec[word] = vec
+				if all([u'\u4e00' <= c <= u'\u9fff' for c in word]):
+					print(word)
+					cnt += 1
+					vec = vec_line.split(" ")
+					wordvec[word] = np.asarray(vec, dtype=np.float32)
 	else:
 		with open(path, "rb") as inf:
 			wordvec = pk.load(inf)
 	return wordvec
 
 
+def add_oov_to_wordvec(wordvec):
+	avg, cnt = None, 0
+	for vec in wordvec.values():
+		cnt += 1
+		if avg is None:
+			avg = vec
+		else:
+			avg += vec
+
+	wordvec["oov"] = avg/cnt
+
+
 def main():
 	#simplify_chinese_words()
+	wordvec = load_wordvec(simplified_wordvec_path, pickle=False)
+	with open(simplified_pickle, 'wb') as outf:
+		pk.dump(wordvec, outf)
 	wordvec = load_wordvec(simplified_pickle, pickle=True)
 	input("loaded")
 	print(wordvec["研究"])
