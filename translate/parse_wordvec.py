@@ -1,4 +1,5 @@
 import _pickle as pk
+import numpy as np
 
 
 wordvec_path = "wordvec/wiki.zh.vec"
@@ -43,7 +44,7 @@ def load_wordvec(path, pickle=False):
 					continue
 				cnt += 1
 				vec = vec_line.split(" ")
-				wordvec[word] = vec
+				wordvec[word] = np.asarray(vec, dtype=np.float32)
 	else:
 		with open(path, "rb") as inf:
 			wordvec = pk.load(inf)
@@ -51,7 +52,13 @@ def load_wordvec(path, pickle=False):
 
 
 def main():
+	#get_all_chinese_words():
 	#simplify_chinese_words()
+
+	wordvec = load_wordvec(simplified_wordvec_path, pickle=False)
+	with open(simplified_pickle, "wb") as inf:
+		pk.dump(wordvec, inf)
+
 	wordvec = load_wordvec(simplified_pickle, pickle=True)
 	input("loaded")
 	print(wordvec["研究"])
