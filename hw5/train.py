@@ -1,75 +1,92 @@
+import os
 import argparse
 from read_data import *
+from model import *
+from datetime import datetime
 from sklearn.model_selection import StratifiedKFold
+from keras.callbacks import ModelCheckpoint
 
 
-latent_dim = 200
-epochs = 50
+MODEL_DIR = "models"
+USER_INFO_VEC_PATH = "data/user_vector.csv"
+MOVIE_INFO_VEC_PATH = "data/movie_vector.csv"
+epochs = 100
 batch_size = 64
 
 
 def parse_input():
 	parser = argparse.ArgumentParser()
-	parser.add_argument("train_data", help="Train data path")
+	parser.add_argument("--train_data", help="Train data path", default="data/train_shuf_10fold.csv")
 
-	parser.add_argument("--kfold", help="K-fold", default=1, type=int)
-	parser.add_argument("--model_dir", help="Model location")
-	parser.add_argument("--method", help="Training method", default="mf", choices=["mf", "nn"])
+	parser.add_argument("--kfold", help="K-fold", default=10, type=int)
+	parser.add_argument("--latent_dim", help="latent dimension", default=200, type=int)
+	parser.add_argument("--dropout", help="Dropout rate", default=0.5, type=float)
+	parser.add_argument("--method", help="Training method", default="nn", choices=["mf", "nn", "classification"])
+	parser.add_argument("--modeldir", help="Model location")
 	return parser.parse_args()
-
-
-def mf(num_user, num_movie, latent_dim):
-	from keras.models import Model
-	from keras.layers import dot, add, Input, Flatten
-	from keras.layers.embeddings import Embedding
-
-	user = Input(shape=[1])
-	movie = Input(shape=[1])
-
-	user_weight = Flatten()(Embedding(num_user, latent_dim)(user))
-	user_bias = Flatten()(Embedding(num_user, 1)(user))
-
-	movie_weight = Flatten()(Embedding(num_movie, latent_dim)(movie))
-	movie_bias = Flatten()(Embedding(num_movie, 1)(movie))
-
-	dot_result = dot([user_weight, movie_weight], axes=-1)
-	added_user_bias = add([dot_result, user_bias])
-	added_movie_bias = add([added_user_bias, movie_bias])
-
-	model = Model(inputs=[user, movie], outputs=added_movie_bias)
-	model.compile('adam', 'mean_squared_error', metrics=["accuracy"])
-	model.summary()
-	return model
-
-
-def compute_accuracy(model, x, y):
-	yhat = model.predict([x[:, 0], x[:, 1]])
-	yhat[yhat > 5.0] = 5.0
-	yhat[yhat < 0.0] = 0.0
-	yhat = np.around(yhat)
-	yhat = np.reshape(yhat, -1)
-	acc = np.sum(yhat.astype(int) == y.astype(int)) / len(y)
-	return acc
 
 
 def main():
 	args = parse_input()
 	user_movie, ratings, num_user, num_movie = read_train_data(args.train_data)
 
+	if args.modeldir is not None:
+		modeldir = args.modeldir
+	else:
+		time_now = datetime.now().strftime('%m-%d-%H-%M')
+		modeldir = os.path.join(MODEL_DIR, "%s_hid%d_dropout%.1f_%s" % (args.method, args.latent_dim, args.dropout, time_now))
+	os.makedirs(modeldir, exist_ok=True)
+
 	if args.kfold > 1:
 		skf = StratifiedKFold(n_splits=args.kfold)
-		for cv_idx, (train_index, val_index) in enumerate(skf.split(user_movie, ratings)):
+		splits = skf.split(user_movie, ratings)
+
+		if args.method == "classification":
+			from keras.utils import to_categorical
+			ratings = ratings - 1
+			ratings = to_categorical(ratings)
+
+		for cv_idx, (train_index, val_index) in enumerate(splits):
+			if cv_idx == 0:
+				continue
+			sub_modeldir = os.path.join(modeldir, "%d-%d" % (args.kfold, cv_idx))
+			os.makedirs(sub_modeldir, exist_ok=True)
+
 			train_x, train_y  = user_movie[train_index], ratings[train_index]
 			val_x, val_y = user_movie[val_index], ratings[val_index]
 
-			model = mf(num_user, num_movie, latent_dim)
-			model.fit([train_x[:, 0], train_x[:, 1]], 
-								train_y,
-								epochs=epochs,
-								validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
-								batch_size=batch_size)
+			filepath = os.path.join(sub_modeldir, 'Model.{epoch:02d}-{val_loss:.4f}.hdf5')
+			ckpointer = ModelCheckpoint(filepath, monitor='val_loss', verbose=10, save_best_only=True, mode='auto')
+
+			if args.method == 'mf':
+				model = mf(num_user, num_movie, args.latent_dim, args.dropout)
+				model.fit([train_x[:, 0], train_x[:, 1]],
+									train_y,
+									epochs=epochs,
+									validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
+									batch_size=batch_size,
+									callbacks=[ckpointer])
+			elif args.method == 'nn' or args.method == 'classification':
+				user_info = read_info("data/user_vector.csv")
+				movie_info = read_info("data/movie_vector.csv")
+				if args.method == 'nn':
+					model = nn(args.latent_dim, args.dropout, user_info, movie_info)
+					model.fit([train_x[:, 0], train_x[:, 1]],
+										train_y,
+										epochs=epochs,
+										validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
+										batch_size=batch_size,
+										callbacks=[ckpointer])
+				else:
+					model = nn(args.latent_dim, args.dropout, user_info, movie_info, classification=True)
+					model.fit([train_x[:, 0], train_x[:, 1]],
+										train_y,
+										epochs=epochs,
+										validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
+										batch_size=batch_size,
+										callbacks=[ckpointer])
 	else:
-		model = mf(num_user, num_movie, latent_dim)
+		model = mf(num_user, num_movie, args.latent_dim, args.dropout)
 		model.fit(user_movie, ratings)
 
 

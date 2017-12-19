@@ -1,10 +1,13 @@
+import numpy as np
 import _pickle as pk
 import numpy as np
 
 
-wordvec_path = "wordvec/wiki.zh.vec"
-simplified_wordvec_path = "wordvec/simplified.vec"
 word_path = "wordvec/words"
+wordvec_path = "wordvec/wiki.zh.vec"
+wordvec_pickle = "wordvec/traditional.pickle"
+
+simplified_wordvec_path = "wordvec/simplified.vec"
 simplified_word_path = "wordvec/simplified_words"
 simplified_pickle = "wordvec/simplified.pickle"
 
@@ -40,26 +43,39 @@ def load_wordvec(path, pickle=False):
 			cnt = 0
 			for line in inf:
 				word, vec_line = line.strip().split(" ", 1)
-				if any(ord(c) < 128 for c in word) is True:
-					continue
-				cnt += 1
-				vec = vec_line.split(" ")
-				wordvec[word] = np.asarray(vec, dtype=np.float32)
+				if all([u'\u4e00' <= c <= u'\u9fff' for c in word]):
+					cnt += 1
+					vec = vec_line.split(" ")
+					wordvec[word] = np.asarray(vec, dtype=np.float32)
 	else:
 		with open(path, "rb") as inf:
 			wordvec = pk.load(inf)
 	return wordvec
 
 
+def add_oov_to_wordvec(wordvec):
+	avg, cnt = None, 0
+	for _, vec in wordvec.items():
+		cnt += 1
+		if avg is None:
+			avg = vec
+		else:
+			avg += vec
+
+	wordvec["oov"] = avg/cnt
+
+
 def main():
-	#get_all_chinese_words():
-	#simplify_chinese_words()
+	'''
+	get_all_chinese_words()
+	simplify_chinese_words()
+	'''
 
-	wordvec = load_wordvec(simplified_wordvec_path, pickle=False)
-	with open(simplified_pickle, "wb") as inf:
-		pk.dump(wordvec, inf)
+	wordvec = load_wordvec(wordvec_path, pickle=False)
+	with open(wordvec_pickle, 'wb') as outf:
+		pk.dump(wordvec, outf)
 
-	wordvec = load_wordvec(simplified_pickle, pickle=True)
+	wordvec = load_wordvec(wordvec_path, pickle=True)
 	input("loaded")
 	print(wordvec["研究"])
 

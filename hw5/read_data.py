@@ -1,5 +1,19 @@
 import numpy as np
 
+def read_info(path):
+	info = None
+	with open(path, 'r') as inf:
+		header = inf.readline()
+		for line in inf:
+			_, feats = line.strip().split(',', 1)
+			feats = feats.split(',')
+			if info is None:
+				info = np.asarray(feats)
+			else:
+				info = np.vstack((info, feats))
+	return info
+
+
 def read_train_data(path):
 	max_uid, max_mid, user_movie, ratings = 0, 0, [], []
 	with open(path, 'r') as inf:
@@ -64,7 +78,54 @@ def get_all_user_movie(path):
 	return user_idx, movie_idx
 
 
+def write_result_to_file(results, path):
+	if len(results.shape) == 2:
+		results = results * np.asarray([1, 2, 3, 4, 5])
+		results = np.sum(results, axis=1)
+
+	with open(path, 'w') as outf:
+		outf.write("TestDataID,Rating\n")
+		for idx, result in enumerate(results):
+			outf.write("%d,%f\n" % (idx+1, result))
+
+
+def read_test_data(path):
+	user_movie = []
+	with open(path, 'r') as inf:
+		header = inf.readline()
+		for line in inf:
+			_, uid, mid = line.strip().split(',')
+			uid = int(uid) - 1
+			mid = int(mid) - 1
+
+			user_movie.append([uid, mid])
+	return np.asarray(user_movie)
+
+
+def read_vectors(path):
+	dic, vec_len = {}, 0
+	with open(path, 'r') as inf:
+		header = inf.readline()
+		for line in inf:
+			idx, feats = line.strip().split(',', 1)
+			dic[int(idx)] = np.asarray(feats.split(','), dtype=np.float32)
+	return dic
+
+
+def transform_input(user_vec, movie_vecs, x):
+	inputs = None
+	for ids in x:
+		uid, mid = ids
+		vec = np.concatenate((user_vec[uid], movie_vecs[mid]))
+		if inputs is None:
+			inputs = vec
+		else:
+			inputs = np.vstack((inputs, vec))
+	return inputs
+
+
 def main():
+	pass
 	'''
 	random_shuffle("data/train.csv", "data/train_shuf.csv")
 	train_uids, train_mids = get_all_user_movie("data/1.csv")
