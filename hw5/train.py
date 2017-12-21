@@ -10,7 +10,7 @@ from keras.callbacks import ModelCheckpoint
 MODEL_DIR = "models"
 USER_INFO_VEC_PATH = "data/user_vector.csv"
 MOVIE_INFO_VEC_PATH = "data/movie_vector.csv"
-epochs = 100
+epochs = 50
 batch_size = 64
 
 
@@ -47,16 +47,16 @@ def main():
 			ratings = to_categorical(ratings)
 
 		for cv_idx, (train_index, val_index) in enumerate(splits):
-			if cv_idx == 0:
-				continue
 			sub_modeldir = os.path.join(modeldir, "%d-%d" % (args.kfold, cv_idx))
 			os.makedirs(sub_modeldir, exist_ok=True)
 
 			train_x, train_y  = user_movie[train_index], ratings[train_index]
 			val_x, val_y = user_movie[val_index], ratings[val_index]
 
+			'''
 			filepath = os.path.join(sub_modeldir, 'Model.{epoch:02d}-{val_loss:.4f}.hdf5')
 			ckpointer = ModelCheckpoint(filepath, monitor='val_loss', verbose=10, save_best_only=True, mode='auto')
+			'''
 
 			if args.method == 'mf':
 				model = mf(num_user, num_movie, args.latent_dim, args.dropout)
@@ -66,18 +66,45 @@ def main():
 									validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
 									batch_size=batch_size,
 									callbacks=[ckpointer])
-			elif args.method == 'nn' or args.method == 'classification':
+			elif args.method == 'nn': #or args.method == 'classification':
 				user_info = read_info("data/user_vector.csv")
 				movie_info = read_info("data/movie_vector.csv")
+
+				user_sec = [[0], list(range(3)), list(range(24)), list(range(34))]
+				movie_sec = [[0], list(range(19))]
 				if args.method == 'nn':
-					model = nn(args.latent_dim, args.dropout, user_info, movie_info)
+
+					for uid, usec in enumerate(user_sec):
+						for mid, msec in enumerate(movie_sec):
+							uinfo = user_info[:, usec]
+							minfo = movie_info[:, msec]
+
+							ablation_modeldir = os.path.join(sub_modeldir, "usec%d_msec%d" % (uid, mid))
+							os.makedirs(ablation_modeldir, exist_ok=True)
+
+							filepath = os.path.join(ablation_modeldir, 'Model.{epoch:02d}-{val_loss:.4f}.hdf5')
+							ckpointer = ModelCheckpoint(filepath, monitor='val_loss', verbose=10, save_best_only=True, mode='auto')
+
+							model = nn(args.latent_dim, args.dropout, uinfo, minfo)
+							model.fit([train_x[:, 0], train_x[:, 1]],
+												train_y,
+												epochs=epochs,
+												validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
+												batch_size=batch_size,
+												callbacks=[ckpointer])
+
+				'''
+				else:
+					model = multitask_model(args.latent_dim, num_user, num_movie, 21, args.dropout)
+					train_aux = np.asarray([user_info[user, 3:24] for user in train_x[:, 0]], dtype=float)
+					val_aux = np.asarray([user_info[user, 3:24] for user in val_x[:, 0]], dtype=float)
+
 					model.fit([train_x[:, 0], train_x[:, 1]],
-										train_y,
+										[train_y, train_aux],
 										epochs=epochs,
-										validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
+										validation_data=([val_x[:, 0], val_x[:, 1]], [val_y, val_aux]),
 										batch_size=batch_size,
 										callbacks=[ckpointer])
-				else:
 					model = nn(args.latent_dim, args.dropout, user_info, movie_info, classification=True)
 					model.fit([train_x[:, 0], train_x[:, 1]],
 										train_y,
@@ -85,6 +112,7 @@ def main():
 										validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
 										batch_size=batch_size,
 										callbacks=[ckpointer])
+				'''
 	else:
 		model = mf(num_user, num_movie, args.latent_dim, args.dropout)
 		model.fit(user_movie, ratings)

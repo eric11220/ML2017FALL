@@ -7,6 +7,7 @@ def read_info(path):
 		for line in inf:
 			_, feats = line.strip().split(',', 1)
 			feats = feats.split(',')
+			feats = np.asarray(feats, dtype=np.float32)
 			if info is None:
 				info = np.asarray(feats)
 			else:
@@ -79,9 +80,11 @@ def get_all_user_movie(path):
 
 
 def write_result_to_file(results, path):
+	'''
 	if len(results.shape) == 2:
 		results = results * np.asarray([1, 2, 3, 4, 5])
 		results = np.sum(results, axis=1)
+	'''
 
 	with open(path, 'w') as outf:
 		outf.write("TestDataID,Rating\n")
