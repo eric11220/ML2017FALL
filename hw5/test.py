@@ -1,5 +1,5 @@
 import sys
-from read_data import read_test_data, write_result_to_file
+from read_data import *
 from keras.models import load_model
 
 
@@ -14,6 +14,10 @@ def main():
 	uid, mid = test_data[:, 0], test_data[:, 1]
 	pred = model.predict([uid, mid], verbose=1)
 
+	'''
+	_, _, _, _, ratings_mean, ratings_std = read_train_data("data/train_shuf_10fold.csv", 1)
+	pred = (pred * ratings_std) + ratings_mean
+	'''
 	write_result_to_file(pred, out_path)
 
 

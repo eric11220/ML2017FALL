@@ -10,7 +10,7 @@ from keras.callbacks import ModelCheckpoint
 MODEL_DIR = "models"
 USER_INFO_VEC_PATH = "data/user_vector.csv"
 MOVIE_INFO_VEC_PATH = "data/movie_vector.csv"
-epochs = 50
+epochs = 100
 batch_size = 64
 
 
@@ -19,6 +19,7 @@ def parse_input():
 	parser.add_argument("--train_data", help="Train data path", default="data/train_shuf_10fold.csv")
 
 	parser.add_argument("--kfold", help="K-fold", default=10, type=int)
+	parser.add_argument("--normalize", help="Perform normalization on ratings", default=1, type=int)
 	parser.add_argument("--latent_dim", help="latent dimension", default=200, type=int)
 	parser.add_argument("--dropout", help="Dropout rate", default=0.5, type=float)
 	parser.add_argument("--method", help="Training method", default="nn", choices=["mf", "nn", "classification"])
@@ -28,7 +29,7 @@ def parse_input():
 
 def main():
 	args = parse_input()
-	user_movie, ratings, num_user, num_movie = read_train_data(args.train_data)
+	user_movie, ratings, num_user, num_movie, ratings_mean, ratings_std = read_train_data(args.train_data, args.normalize)
 
 	if args.modeldir is not None:
 		modeldir = args.modeldir
@@ -53,10 +54,8 @@ def main():
 			train_x, train_y  = user_movie[train_index], ratings[train_index]
 			val_x, val_y = user_movie[val_index], ratings[val_index]
 
-			'''
 			filepath = os.path.join(sub_modeldir, 'Model.{epoch:02d}-{val_loss:.4f}.hdf5')
 			ckpointer = ModelCheckpoint(filepath, monitor='val_loss', verbose=10, save_best_only=True, mode='auto')
-			'''
 
 			if args.method == 'mf':
 				model = mf(num_user, num_movie, args.latent_dim, args.dropout)
@@ -69,53 +68,24 @@ def main():
 			elif args.method == 'nn': #or args.method == 'classification':
 				user_info = read_info("data/user_vector.csv")
 				movie_info = read_info("data/movie_vector.csv")
-
-				user_sec = [[0], list(range(3)), list(range(24)), list(range(34))]
-				movie_sec = [[0], list(range(19))]
 				if args.method == 'nn':
-
-					for uid, usec in enumerate(user_sec):
-						for mid, msec in enumerate(movie_sec):
-							uinfo = user_info[:, usec]
-							minfo = movie_info[:, msec]
-
-							ablation_modeldir = os.path.join(sub_modeldir, "usec%d_msec%d" % (uid, mid))
-							os.makedirs(ablation_modeldir, exist_ok=True)
-
-							filepath = os.path.join(ablation_modeldir, 'Model.{epoch:02d}-{val_loss:.4f}.hdf5')
-							ckpointer = ModelCheckpoint(filepath, monitor='val_loss', verbose=10, save_best_only=True, mode='auto')
-
-							model = nn(args.latent_dim, args.dropout, uinfo, minfo)
-							model.fit([train_x[:, 0], train_x[:, 1]],
-												train_y,
-												epochs=epochs,
-												validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
-												batch_size=batch_size,
-												callbacks=[ckpointer])
-
-				'''
-				else:
-					model = multitask_model(args.latent_dim, num_user, num_movie, 21, args.dropout)
-					train_aux = np.asarray([user_info[user, 3:24] for user in train_x[:, 0]], dtype=float)
-					val_aux = np.asarray([user_info[user, 3:24] for user in val_x[:, 0]], dtype=float)
-
-					model.fit([train_x[:, 0], train_x[:, 1]],
-										[train_y, train_aux],
-										epochs=epochs,
-										validation_data=([val_x[:, 0], val_x[:, 1]], [val_y, val_aux]),
-										batch_size=batch_size,
-										callbacks=[ckpointer])
-					model = nn(args.latent_dim, args.dropout, user_info, movie_info, classification=True)
+					model = nn(args.latent_dim, args.dropout, user_info, movie_info)
 					model.fit([train_x[:, 0], train_x[:, 1]],
 										train_y,
 										epochs=epochs,
 										validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
 										batch_size=batch_size,
 										callbacks=[ckpointer])
-				'''
 	else:
-		model = mf(num_user, num_movie, args.latent_dim, args.dropout)
-		model.fit(user_movie, ratings)
+		user_info = read_info("data/user_vector.csv")
+		movie_info = read_info("data/movie_vector.csv")
+		model = nn(args.latent_dim, args.dropout, uinfo, minfo)
+		model.fit([train_x[:, 0], train_x[:, 1]],
+							train_y,
+							epochs=epochs,
+							validation_data=([val_x[:, 0], val_x[:, 1]], val_y),
+							batch_size=batch_size,
+							callbacks=[ckpointer])
 
 
 if __name__ == '__main__':

@@ -15,7 +15,7 @@ def read_info(path):
 	return info
 
 
-def read_train_data(path):
+def read_train_data(path, normalize):
 	max_uid, max_mid, user_movie, ratings = 0, 0, [], []
 	with open(path, 'r') as inf:
 		header = inf.readline()
@@ -32,7 +32,12 @@ def read_train_data(path):
 			if mid > max_mid:
 				max_mid = mid
 
-	return np.asarray(user_movie), np.asarray(ratings, dtype=np.float32), max_uid+1, max_mid+1
+	ratings = np.asarray(ratings, dtype=np.float32)
+	ratings_mean, ratings_std = np.mean(ratings), np.std(ratings)
+	if normalize == 1:
+		ratings = (ratings - ratings_mean) / ratings_std
+
+	return np.asarray(user_movie), ratings, max_uid+1, max_mid+1, ratings_mean, ratings_std
 
 
 def random_shuffle(in_path, out_path, kfold=10):

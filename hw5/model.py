@@ -8,10 +8,10 @@ def embedding(num_user, num_movie, latent_dim, dropout):
 	movie = Input(shape=[1])
 
 	user_weight = Flatten()(Embedding(num_user, latent_dim)(user))
-	#user_weight = Dropout(dropout)(user_weight)
+	user_weight = Dropout(dropout)(user_weight)
 
 	movie_weight = Flatten()(Embedding(num_movie, latent_dim)(movie))
-	#movie_weight = Dropout(dropout)(movie_weight)
+	movie_weight = Dropout(dropout)(movie_weight)
 
 	movie_bias = Flatten()(Embedding(num_movie, 1)(movie))
 	user_bias = Flatten()(Embedding(num_user, 1)(user))
@@ -23,15 +23,16 @@ def mf(num_user, num_movie, latent_dim, dropout):
 
 	dot_result = dot([user_weight, movie_weight], axes=-1)
 	added_user_bias = add([dot_result, user_bias])
-	added_movie_bias = add([added_user_bias, movie_bias])
+	dot_result = add([added_user_bias, movie_bias])
 
-	model = Model(inputs=[user, movie], outputs=added_movie_bias)
+	model = Model(inputs=[user, movie], outputs=dot_result)
 	model.compile('adam', 'mean_squared_error', metrics=["accuracy"])
 	model.summary()
 	return model
 
 
 def nn(latent_dim, dropout, user_info, movie_info, classification=False):
+	from keras import regularizers
 	num_user, user_info_len = user_info.shape
 	num_movie, movie_info_len = movie_info.shape
 
@@ -47,8 +48,7 @@ def nn(latent_dim, dropout, user_info, movie_info, classification=False):
 	#feature = Concatenate()([user_embedding, movie_embedding])
 
 	fc1 = Dense(128, activation="relu")(feature)
-	fc1_drop = Dropout(dropout)(fc1)
-	fc2 = Dense(64, activation="relu")(fc1_drop)
+	fc2 = Dense(64, activation="relu")(fc1)
 	fc2_drop = Dropout(dropout)(fc2)
 	fc3 = Dense(32, activation="relu")(fc2_drop)
 	fc3_drop = Dropout(dropout)(fc3)
@@ -56,7 +56,7 @@ def nn(latent_dim, dropout, user_info, movie_info, classification=False):
 	fc4_drop = Dropout(dropout)(fc4)
 
 	if classification is False:
-		pred = Dense(1, activation="relu")(fc4_drop)
+		pred = Dense(1)(fc4_drop)
 		loss = 'mean_squared_error'
 	else:
 		pred = Dense(5, activation="softmax")(fc4_drop)
@@ -69,7 +69,6 @@ def nn(latent_dim, dropout, user_info, movie_info, classification=False):
 
 
 def multitask_model(latent_dim, num_user, num_movie, predicted_info_shape, dropout, classification=False):
-
 	user, movie, user_weight, _, movie_weight, _ = embedding(num_user, num_movie, latent_dim, dropout)
 	feature = Concatenate()([user_weight, movie_weight])
 
