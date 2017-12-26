@@ -1,11 +1,35 @@
 import os
 import jieba
+import numpy as np
 from gensim.models import word2vec as w2v
+from keras.utils.np_utils import to_categorical
 wordvec_dir = "wordvecs"
+
+# 0 for <PAD>
+def onehot_embedding(tokenizer):
+	word_index = tokenizer.word_index
+
+	# last one for <SOS>
+	onehot = np.arange(len(word_index) + 2)
+	onehot = to_categorical(onehot)
+	return onehot
+
+
+def wordvec_to_embedding(tokenizer, wordvec):
+	word_index = tokenizer.word_index
+	num_words = len(word_index) + 1
+
+	embeddings = None
+	for word, idx in word_index.items():
+		vec = wordvec[word]
+		if embeddings is None:
+			embeddings = np.zeros((num_words, vec.shape[0]))
+		embeddings[idx] = vec
+	return embeddings
 
 
 def load_wordvec(path=os.path.join(wordvec_dir, "wordvec_100")):
-	return w2v.load(path)
+	return w2v.Word2Vec.load(path)
 
 
 def train_wordvec(sentences, dim=100):
@@ -15,6 +39,8 @@ def train_wordvec(sentences, dim=100):
 
 
 def get_all_sentences(min_count=5):
+	jieba.set_dictionary('jieba/dict.txt.big')
+
 	words, count = [], {}
 	with open("data/training_data/all_train.txt", "r") as inf:
 		for line in inf:
@@ -40,7 +66,6 @@ def get_all_sentences(min_count=5):
 
 
 def main():
-	jieba.set_dictionary('jieba/dict.txt.big')
 	sentences = get_all_sentences()
 	word_vec = train_wordvec(sentences)
 
