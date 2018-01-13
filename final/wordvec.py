@@ -3,6 +3,7 @@ import jieba
 import numpy as np
 from gensim.models import word2vec as w2v
 from keras.utils.np_utils import to_categorical
+
 wordvec_dir = "wordvecs"
 
 
@@ -38,7 +39,7 @@ def get_all_sentences(min_count=3):
 	jieba.set_dictionary('jieba/dict.txt.big')
 
 	words, count = [], {}
-	with open("data/training_data/all_train.txt", "r") as inf:
+	with open("data/training_data/all_train.txt", "r", encoding="utf-8") as inf:
 		for line in inf:
 			line = line.strip()
 			#line = "".join([c for c in line if u'\u4e00' <= c <= u'\u9fff'])

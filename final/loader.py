@@ -17,7 +17,7 @@ def count_sentence_lengths():
 
 	maxlen = 0
 	qlen_dist, olen_dist = {}, {}
-	with open("data/testing_data.csv", "r") as inf:
+	with open("data/testing_data.csv", "r", encoding="utf-8") as inf:
 		inf.readline()
 		for line in inf:
 			_, q, options = line.strip().split(',')
@@ -65,7 +65,7 @@ def get_train_sents(folder="data/training_data", wordvec_path="wordvecs/wordvec_
 		f = os.path.join(folder, f)
 
 		files[f] = []
-		with open(f, 'r') as inf:
+		with open(f, 'r', encoding="utf-8") as inf:
 			for line in inf:
 				line = line.strip()
 				line = jieba.cut(line, cut_all=False)
@@ -80,31 +80,34 @@ def get_train_sents(folder="data/training_data", wordvec_path="wordvecs/wordvec_
 
 	first_sents, second_sents, labels = [], [], []
 	for f, sents in files.items():	
-		for idx, sent in enumerate(sents):
-			if idx == len(sents) - 1:
-				continue
+		for idx in range(len(sents)):
+			if idx > len(sents) - num_sent * 2:
+				break
 
-			# Positive
-			first_sents.append(sent)
-			second_sents.append(sents[idx+1])
+			first, second, neg = "", "", ""
+			for time in range(num_sent):
+				first += sents[idx+time] + " "
+				second += sents[idx+num_sent+time] + " "
+
+				if idx + offset + num_sent > len(sents):
+					neg += sents[idx-offset+time] + " "
+				else:
+					neg += sents[idx+offset+time] + " "
+
+			first_sents.append(first)
+			first_sents.append(first)
+			second_sents.append(second)
+			second_sents.append(neg)
 			labels.append(1)
-
-			# Negative
-			first_sents.append(sent)
-			if idx + offset > len(sents) - 1:
-				second_sents.append(sents[idx-offset])
-			else:
-				second_sents.append(sents[idx+offset])
 			labels.append(0)
 
 	first_sents = tokenizer.texts_to_sequences(first_sents)
 	second_sents = tokenizer.texts_to_sequences(second_sents)
 
 	maxlen = max([len(sent) for sent in first_sents])
-	print(maxlen)
 
-	first_sents = sequence.pad_sequences(first_sents, maxlen=maxlen)
-	second_sents = sequence.pad_sequences(second_sents, maxlen=maxlen)
+	first_sents = sequence.pad_sequences(first_sents, maxlen=maxlen, padding="post")
+	second_sents = sequence.pad_sequences(second_sents, maxlen=maxlen, padding="post")
 	labels = np.asarray(labels)
 
 	with open(pickle_path, 'wb') as outf:
