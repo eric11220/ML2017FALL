@@ -82,6 +82,7 @@ def main():
 	img = img.flatten()
 	img = img - mean
 	reconst_face = reconstruct_faces(img, channel_eigens, mean)
+	reconst_face = np.reshape(reconst_face, (600, 600, 3))
 	io.imsave("reconstruction.jpg", reconst_face)
 
 	'''
