@@ -12,7 +12,7 @@ def parse_inputs():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--wordvec", help="Pre-trained word vector path", default="wordvecs/wordvec_dim150_mincount3")
 	parser.add_argument("--batch_size", help="Batch size", default=128)
-	parser.add_argument("--n_epoch", help="Number of epoch", default=3)
+	parser.add_argument("--n_epoch", help="Number of epoch", default=5)
 	parser.add_argument("--kfold", help="Number of fold", default=10)
 	parser.add_argument("--num_sent", help="Number of sentences", default=2)
 	return parser.parse_args()

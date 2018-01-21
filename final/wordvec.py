@@ -31,7 +31,7 @@ def load_wordvec(path=os.path.join(wordvec_dir, "wordvec_100")):
 
 def train_wordvec(sentences, dim=150, min_count=3):
 	print("Training word vectors")
-	word_vec = w2v.Word2Vec(sentences, size=dim, min_count=1)
+	word_vec = w2v.Word2Vec(sentences, size=dim, min_count=min_count, window=7, sg=1, iter=30)
 	word_vec.save(os.path.join(wordvec_dir, "wordvec_dim%d_mincount%d" % (dim, min_count)))
 
 

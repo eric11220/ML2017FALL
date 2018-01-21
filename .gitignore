@@ -2,3 +2,8 @@
 *.txt
 *.swp
 *.pyc
+*.csv
+*/data
+*/results
+*/result
+*.jpg

@@ -9,7 +9,10 @@ def write_answers_to_file(answers, out_path="results/test.csv"):
 	with open(out_path, 'w') as outf:
 		outf.write("id,ans\n")
 		for idx, ans in enumerate(answers):
-			outf.write("%d,%d\n" % (idx+1, ans))
+			outf.write("%d," % (idx + 1))
+			for prob in ans:
+				outf.write("%.4f " % prob)
+			outf.write("\n")
 
 
 def get_test_sents(tokenizer, maxlen, path, wordvec):
@@ -53,10 +56,14 @@ def get_test_sents(tokenizer, maxlen, path, wordvec):
 		'''
 
 		questions = tokenizer.texts_to_sequences(questions)
-		questions = sequence.pad_sequences(questions, maxlen=maxlen)
+		questions = sequence.pad_sequences(questions, maxlen=maxlen, padding='post')
+
 		for idx in range(len(options)):
 			options[idx] = tokenizer.texts_to_sequences(options[idx])
-			options[idx] = sequence.pad_sequences(options[idx], maxlen=maxlen)
+			for oid, option in enumerate(options[idx]):
+				if len(option) > maxlen:
+					options[idx][oid] = option[:maxlen]
+			options[idx] = sequence.pad_sequences(options[idx], maxlen=maxlen, padding='post')
 
 		return questions, options
 
@@ -68,7 +75,7 @@ def main():
 	
 	wordvec_path = os.path.basename(os.path.dirname(model_path)).rsplit("_", 1)[0]
 	wordvec = load_wordvec(path=os.path.join("wordvecs", "wordvec_dim150_mincount3"))
-	num_sent = int(os.path.dirname(model_path).split("numsent")[1])
+	num_sent = int(os.path.dirname(model_path).split("numsent")[1][0])
 	
 	first_sents, _, _, word_index = get_train_sents(num_sent=num_sent)
 	maxlen = first_sents.shape[1]
@@ -80,9 +87,10 @@ def main():
 	losses = []
 	for option in options:
 		loss = model.predict([questions, option], verbose=1)
-		losses.append(loss)
+		losses.append(loss[:, 0])
 	losses = np.asarray(losses)
-	ans = np.argmax(losses, axis=0)
+	ans = losses.T
+	#ans = np.argmax(losses, axis=0)
 
 	name, ext = os.path.splitext(os.path.basename(model_path))
 	result_path = os.path.join("results", name + '.csv')
