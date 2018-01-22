@@ -75,13 +75,20 @@ def main():
 	
 	wordvec_path = os.path.basename(os.path.dirname(model_path)).rsplit("_", 1)[0]
 	wordvec = load_wordvec(path=os.path.join("wordvecs", "wordvec_dim150_mincount3"))
-	num_sent = int(os.path.dirname(model_path).split("numsent")[1][0])
+	#num_sent = int(os.path.dirname(model_path).split("numsent")[1][0])
+	num_sent = 2
 	
-	first_sents, _, _, word_index = get_train_sents(num_sent=num_sent)
-	maxlen = first_sents.shape[1]
+	#first_sents, _, _, word_index = get_train_sents(num_sent=num_sent)
+	#maxlen = first_sents.shape[1]
+	maxlen = 21
 
-	tokenizer = Tokenizer()
-	tokenizer.word_index = word_index
+	#tokenizer = Tokenizer()
+	#tokenizer.word_index = word_index
+	import _pickle as pk
+	with open("tokenizer.pickle", "rb") as handle:
+		tokenizer = pickle.load(handle)
+	word_index = tokenizer.word_index
+
 	questions, options = get_test_sents(tokenizer, maxlen, test_path, wordvec)
 	
 	losses = []
