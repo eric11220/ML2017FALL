@@ -56,6 +56,7 @@ def main():
 		labels, losses = [], []
 		for name in sys.argv[1:-1]:
 			csv = name
+			print(csv)
 			loss = float(os.path.splitext(csv)[0].split('-')[-1])
 			losses.append(loss)
 
