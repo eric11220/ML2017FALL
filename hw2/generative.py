@@ -1,81 +1,180 @@
-import sys
-import os
-import sys
-import math
+import os, sys
+import pandas as pd
 import numpy as np
-from splitData import *
+from random import shuffle
+import argparse
+from math import log, floor
 
-def predict(X_test, mu1, mu2, shared_cov, N1, N2):
-	sigma_inv = np.linalg.inv(shared_cov)
-	w = np.dot( (mu1 - mu2), sigma_inv)
-	x = X_test.T
-	b = -0.5 * np.dot(np.dot([mu1], sigma_inv), mu1) \
-		+ 0.5 * np.dot(np.dot([mu2], sigma_inv), mu2) \
-		+ np.log(float(N1)/N2)
+# If you wish to get the same shuffle result
+# np.random.seed(2401)
 
-	a = np.dot(w, x) + b
-	y = sigmoid(a)
-	return y
+def load_data(train_data_path, train_label_path, test_data_path):
+    X_train = pd.read_csv(train_data_path, sep=',', header=0)
+    X_train = np.array(X_train.values)
+    Y_train = pd.read_csv(train_label_path, sep=',', header=None)
+    Y_train = np.array(Y_train)
+    X_test = pd.read_csv(test_data_path, sep=',', header=0)
+    X_test = np.array(X_test.values)
 
+    return (X_train, Y_train, X_test)
 
-def sigmoid(x):
-	res = 1 / (1 + np.exp(-x))
-	return np.clip(res, 0.0000000000001, 0.999999999999)
+def _shuffle(X, Y):
+    randomize = np.arange(len(X))
+    np.random.shuffle(randomize)
+    return (X[randomize], Y[randomize])
 
-argc = len(sys.argv)
-if argc != 5:
-	print("Usage: python train.py X_train Y_train X_test out_csv")
-	exit()
+def normalize(X_all, X_test):
 
-X_train = sys.argv[1]
-Y_train = sys.argv[2]
-X_test = sys.argv[3]
-csv_path = sys.argv[4]
+    # Feature normalization with train and test X
+    mu = np.mean(X_all, axis=0)
+    std = np.std(X_all, axis=0)
 
-# Read training data
-_, X_train = read_data(X_train)
-_, Y_train = read_data(Y_train, dtype=np.int16)
+    X_all = (X_all - mu) / std
+    X_test = (X_test - mu) / std
+    return X_all, X_test
 
-# Read testing data
-_, X_test = read_data(X_test)
+def split_valid_set(X_all, Y_all, percentage):
+    all_data_size = len(X_all)
+    valid_data_size = int(floor(all_data_size * percentage))
+    
+    X_all, Y_all = _shuffle(X_all, Y_all)
+    
+    X_valid, Y_valid = X_all[0:valid_data_size], Y_all[0:valid_data_size]
+    X_train, Y_train = X_all[valid_data_size:], Y_all[valid_data_size:]
+    
+    return X_train, Y_train, X_valid, Y_valid
 
-		
-train_data_size, dim = X_train.shape
-cnt1, cnt2 = 0, 0
-		
-mu1 = np.zeros((dim,))
-mu2 = np.zeros((dim,))
-for i in range(train_data_size):
-	if Y_train[i] == 1:
-		mu1 += X_train[i]
-		cnt1 +=1
-	else:
-		mu2 += X_train[i]
-		cnt2 +=1
+def sigmoid(z):
+    res = 1 / (1.0 + np.exp(-z))
+    return np.clip(res, 1e-8, 1-(1e-8))
 
-mu1 /= cnt1
-mu2 /= cnt2
+def valid(X_valid, Y_valid, mu1, mu2, shared_sigma, N1, N2):
+    sigma_inverse = np.linalg.inv(shared_sigma)
+    w = np.dot( (mu1-mu2), sigma_inverse)
+    x = X_valid.T
+    b = (-0.5) * np.dot(np.dot([mu1], sigma_inverse), mu1) + (0.5) * np.dot(np.dot([mu2], sigma_inverse), mu2) + np.log(float(N1)/N2)
+    a = np.dot(w, x) + b
+    y = sigmoid(a)
+    y_ = np.around(y)
+    result = (np.squeeze(Y_valid) == y_)
+    print('Valid acc = %f' % (float(result.sum()) / result.shape[0]))
+    return
 
+def train(X_all, Y_all, save_dir):
+    # Split a 10%-validation set from the training set
+    valid_set_percentage = 0.1
+    X_train, Y_train, X_valid, Y_valid = split_valid_set(X_all, Y_all, valid_set_percentage)
+    
+    # Gaussian distribution parameters
+    train_data_size = X_train.shape[0]
+    cnt1 = 0
+    cnt2 = 0
 
-sigma1 = np.zeros((dim, dim))
-sigma2 = np.zeros((dim, dim))
-for i in range(train_data_size):
-	if Y_train[i] == 1:
-		sigma1 += np.dot(np.transpose([X_train[i] - mu1]), [X_train[i] - mu1])
-	else:
-		sigma2 += np.dot(np.transpose([X_train[i] - mu2]), [X_train[i] - mu2])
+    feat_len = X_all.shape[1]
+    mu1 = np.zeros((feat_len,))
+    mu2 = np.zeros((feat_len,))
+    for i in range(train_data_size):
+        if Y_train[i] == 1:
+            mu1 += X_train[i]
+            cnt1 += 1
+        else:
+            mu2 += X_train[i]
+            cnt2 += 1
+    mu1 /= cnt1
+    mu2 /= cnt2
 
-sigma1 /= cnt1
-sigma2 /= cnt2
+    sigma1 = np.zeros((feat_len,feat_len))
+    sigma2 = np.zeros((feat_len,feat_len))
+    for i in range(train_data_size):
+        if Y_train[i] == 1:
+            sigma1 += np.dot(np.transpose([X_train[i] - mu1]), [(X_train[i] - mu1)])
+        else:
+            sigma2 += np.dot(np.transpose([X_train[i] - mu2]), [(X_train[i] - mu2)])
+    sigma1 /= cnt1
+    sigma2 /= cnt2
+    shared_sigma = (float(cnt1) / train_data_size) * sigma1 + (float(cnt2) / train_data_size) * sigma2
+    N1 = cnt1
+    N2 = cnt2
 
+    print('=====Saving Param=====')
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+    param_dict = {'mu1':mu1, 'mu2':mu2, 'shared_sigma':shared_sigma, 'N1':[N1], 'N2':[N2]}
+    for key in sorted(param_dict):
+        print('Saving %s' % key)
+        np.savetxt(os.path.join(save_dir, ('%s' % key)), param_dict[key])
+    
+    print('=====Validating=====')
+    valid(X_valid, Y_valid, mu1, mu2, shared_sigma, N1, N2)
 
-shared_sigma = (float(cnt1) / train_data_size) * sigma1 \
-			   + (float(cnt2) / train_data_size) * sigma2
+    return
 
-Xtest_pred = predict(X_test, mu1, mu2, shared_sigma, cnt1, cnt2)
-Xtest_pred = np.around(Xtest_pred)
+def infer(X_test, save_dir, output_dir):
+    # Load parameters
+    print('=====Loading Param from %s=====' % save_dir)
+    mu1 = np.loadtxt(os.path.join(save_dir, 'mu1'))
+    mu2 = np.loadtxt(os.path.join(save_dir, 'mu2'))
+    shared_sigma = np.loadtxt(os.path.join(save_dir, 'shared_sigma'))
+    N1 = np.loadtxt(os.path.join(save_dir, 'N1'))
+    N2 = np.loadtxt(os.path.join(save_dir, 'N2'))
 
-with open(csv_path, "w") as outf:
-	outf.write("id,label\n")
-	for idx, label in enumerate(Xtest_pred):
-		outf.write(str(idx+1) + ',' + str(int(label)) + "\n")
+    # Predict
+    sigma_inverse = np.linalg.inv(shared_sigma)
+    w = np.dot( (mu1-mu2), sigma_inverse)
+    x = X_test.T
+    b = (-0.5) * np.dot(np.dot([mu1], sigma_inverse), mu1) + (0.5) * np.dot(np.dot([mu2], sigma_inverse), mu2) + np.log(float(N1)/N2)
+    a = np.dot(w, x) + b
+    y = sigmoid(a)
+    y_ = np.around(y)
+
+    print('=====Write output to %s =====' % output_dir)
+    # Write output
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    output_path = os.path.join(output_dir, 'prediction.csv')
+    with open(output_path, 'w') as f:
+        f.write('id,label\n')
+        for i, v in  enumerate(y_):
+            f.write('%d,%d\n' %(i+1, v))
+
+    return
+
+def main(opts):
+    # Load feature and label
+    X_all, Y_all, X_test = load_data(opts.train_data_path, opts.train_label_path, opts.test_data_path)
+    # Normalization
+    X_all, X_test = normalize(X_all, X_test)
+    
+    # To train or to infer
+    if opts.train:
+        train(X_all, Y_all, opts.save_dir)
+    elif opts.infer:
+        infer(X_test, opts.save_dir, opts.output_dir)
+    else:
+        print("Error: Argument --train or --infer not found")
+    return
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Probabilistic Generative Model for Binary Classification')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--train', action='store_true', default=False,
+                        dest='train', help='Input --train to Train')
+    group.add_argument('--infer', action='store_true',default=False,
+                        dest='infer', help='Input --infer to Infer')
+    parser.add_argument('--train_data_path', type=str,
+                        default='data/train_X', dest='train_data_path',
+                        help='Path to training data')
+    parser.add_argument('--train_label_path', type=str,
+                        default='data/train_Y', dest='train_label_path',
+                        help='Path to training data\'s label')
+    parser.add_argument('--test_data_path', type=str,
+                        default='data/test_X', dest='test_data_path',
+                        help='Path to testing data')
+    parser.add_argument('--save_dir', type=str, 
+                        default='generative_params/', dest='save_dir',
+                        help='Path to save the model parameters')
+    parser.add_argument('--output_dir', type=str, 
+                        default='generative_output/', dest='output_dir',
+                        help='Path to save output')
+    opts = parser.parse_args()
+    main(opts)
